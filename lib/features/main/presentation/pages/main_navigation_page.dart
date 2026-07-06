@@ -27,7 +27,10 @@ class MainNavigationPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final title = currentIndex == 1 ? '마이페이지' : 'Puchall';
+
     return Scaffold(
+      appBar: AppBar(title: Text(title)),
       body: child,
       bottomNavigationBar: DecoratedBox(
         decoration: const BoxDecoration(

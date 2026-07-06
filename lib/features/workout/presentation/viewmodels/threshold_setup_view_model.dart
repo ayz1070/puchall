@@ -16,6 +16,8 @@ class ThresholdSetupState {
     this.snapshot = const SensorSnapshot(),
     this.isCapturing = false,
     this.maxAccelerationMagnitude = 0,
+    this.maxGyroscopeMagnitude = 0,
+    this.sampleDurationMs = 0,
     this.savedThreshold,
   });
 
@@ -23,13 +25,17 @@ class ThresholdSetupState {
   final SensorSnapshot snapshot;
   final bool isCapturing;
   final double maxAccelerationMagnitude;
-  final double? savedThreshold;
+  final double maxGyroscopeMagnitude;
+  final int sampleDurationMs;
+  final WorkoutThreshold? savedThreshold;
 
   ThresholdSetupState copyWith({
     SensorSnapshot? snapshot,
     bool? isCapturing,
     double? maxAccelerationMagnitude,
-    double? savedThreshold,
+    double? maxGyroscopeMagnitude,
+    int? sampleDurationMs,
+    WorkoutThreshold? savedThreshold,
   }) {
     return ThresholdSetupState(
       exerciseType: exerciseType,
@@ -37,6 +43,9 @@ class ThresholdSetupState {
       isCapturing: isCapturing ?? this.isCapturing,
       maxAccelerationMagnitude:
           maxAccelerationMagnitude ?? this.maxAccelerationMagnitude,
+      maxGyroscopeMagnitude:
+          maxGyroscopeMagnitude ?? this.maxGyroscopeMagnitude,
+      sampleDurationMs: sampleDurationMs ?? this.sampleDurationMs,
       savedThreshold: savedThreshold ?? this.savedThreshold,
     );
   }
@@ -58,17 +67,25 @@ class ThresholdSetupViewModel extends StateNotifier<ThresholdSetupState> {
   StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
   StreamSubscription<GyroscopeEvent>? _gyroscopeSubscription;
   StreamSubscription<MagnetometerEvent>? _magnetometerSubscription;
+  DateTime? _captureStartedAt;
 
   Future<void> _loadSavedThreshold(ExerciseType exerciseType) async {
     final getThreshold = _ref.read(getWorkoutThresholdUseCaseProvider);
     final threshold = await getThreshold(exerciseType);
-    state = state.copyWith(savedThreshold: threshold?.accelerationMagnitude);
+    if (threshold == null) return;
+    state = state.copyWith(savedThreshold: threshold);
   }
 
   void startCapture() {
     if (state.isCapturing) return;
 
-    state = state.copyWith(isCapturing: true, maxAccelerationMagnitude: 0);
+    _captureStartedAt = DateTime.now();
+    state = state.copyWith(
+      isCapturing: true,
+      maxAccelerationMagnitude: 0,
+      maxGyroscopeMagnitude: 0,
+      sampleDurationMs: 0,
+    );
 
     _accelerometerSubscription = accelerometerEventStream().listen((event) {
       final vector = SensorVector(x: event.x, y: event.y, z: event.z);
@@ -87,12 +104,18 @@ class ThresholdSetupViewModel extends StateNotifier<ThresholdSetupState> {
     });
 
     _gyroscopeSubscription = gyroscopeEventStream().listen((event) {
+      final vector = SensorVector(x: event.x, y: event.y, z: event.z);
+      final maxValue = vector.magnitude > state.maxGyroscopeMagnitude
+          ? vector.magnitude
+          : state.maxGyroscopeMagnitude;
+
       state = state.copyWith(
         snapshot: SensorSnapshot(
           accelerometer: state.snapshot.accelerometer,
-          gyroscope: SensorVector(x: event.x, y: event.y, z: event.z),
+          gyroscope: vector,
           magnetometer: state.snapshot.magnetometer,
         ),
+        maxGyroscopeMagnitude: maxValue,
       );
     });
 
@@ -107,27 +130,38 @@ class ThresholdSetupViewModel extends StateNotifier<ThresholdSetupState> {
     });
   }
 
-  Future<double?> stopAndSave() async {
+  Future<WorkoutThreshold?> stopAndSave() async {
     if (!state.isCapturing) return null;
     _cancelSubscription();
 
-    final thresholdValue = state.maxAccelerationMagnitude;
-    if (thresholdValue <= 0) {
+    final accelerationMagnitude = state.maxAccelerationMagnitude;
+    final gyroscopeMagnitude = state.maxGyroscopeMagnitude;
+    final sampleDurationMs = _captureStartedAt == null
+        ? WorkoutThreshold.defaultSampleDurationMs
+        : DateTime.now().difference(_captureStartedAt!).inMilliseconds;
+    _captureStartedAt = null;
+
+    if (accelerationMagnitude <= 0 || gyroscopeMagnitude <= 0) {
       state = state.copyWith(isCapturing: false);
       return null;
     }
 
-    final saveThreshold = _ref.read(saveWorkoutThresholdUseCaseProvider);
-    await saveThreshold(
-      WorkoutThreshold(
-        exerciseType: state.exerciseType,
-        accelerationMagnitude: thresholdValue,
-      ),
+    final threshold = WorkoutThreshold.normalized(
+      exerciseType: state.exerciseType,
+      accelerationMagnitude: accelerationMagnitude,
+      gyroscopeMagnitude: gyroscopeMagnitude,
+      sampleDurationMs: sampleDurationMs,
     );
+    final saveThreshold = _ref.read(saveWorkoutThresholdUseCaseProvider);
+    await saveThreshold(threshold);
 
-    state = state.copyWith(isCapturing: false, savedThreshold: thresholdValue);
+    state = state.copyWith(
+      isCapturing: false,
+      sampleDurationMs: sampleDurationMs,
+      savedThreshold: threshold,
+    );
     _ref.invalidate(workoutMeasureProvider(state.exerciseType));
-    return thresholdValue;
+    return threshold;
   }
 
   void _cancelSubscription() {

@@ -31,17 +31,24 @@ class ThresholdSetupPage extends ConsumerWidget {
                   const Text('기준치 측정', style: AppTextStyles.titleMedium),
                   const SizedBox(height: 8),
                   Text(
-                    '1회 동작을 수행하는 동안 가속도 최대값을 저장합니다.',
+                    '1회 동작의 가속도와 자이로 패턴을 기준치로 저장합니다.',
                     style: AppTextStyles.body,
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    '현재 최대값 ${state.maxAccelerationMagnitude.toStringAsFixed(2)}',
+                    '가속도 최대 ${state.maxAccelerationMagnitude.toStringAsFixed(2)}',
                     style: AppTextStyles.label,
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '저장된 기준치 ${state.savedThreshold?.toStringAsFixed(2) ?? '-'}',
+                    '자이로 최대 ${state.maxGyroscopeMagnitude.toStringAsFixed(2)}',
+                    style: AppTextStyles.label,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    state.savedThreshold == null
+                        ? '저장된 기준치 -'
+                        : '저장됨 가속도 ${state.savedThreshold!.accelerationMagnitude.toStringAsFixed(2)} · 자이로 ${state.savedThreshold!.gyroscopeMagnitude.toStringAsFixed(2)}',
                     style: AppTextStyles.body,
                   ),
                 ],
@@ -59,7 +66,7 @@ class ThresholdSetupPage extends ConsumerWidget {
                       if (!context.mounted) return;
                       final message = savedThreshold == null
                           ? '측정된 센서값이 없어 기준치를 저장하지 않았습니다.'
-                          : '기준치를 ${savedThreshold.toStringAsFixed(2)}로 저장했습니다.';
+                          : '기준치를 저장했습니다. 가속도 ${savedThreshold.accelerationMagnitude.toStringAsFixed(2)}, 자이로 ${savedThreshold.gyroscopeMagnitude.toStringAsFixed(2)}';
                       ScaffoldMessenger.of(
                         context,
                       ).showSnackBar(SnackBar(content: Text(message)));

@@ -19,6 +19,7 @@ class WorkoutMeasureState {
     this.count = 0,
     this.isMeasuring = false,
     this.threshold = WorkoutThreshold.defaultAccelerationMagnitude,
+    this.thresholdConfig,
     this.sessionStartedAt,
   });
 
@@ -27,6 +28,7 @@ class WorkoutMeasureState {
   final int count;
   final bool isMeasuring;
   final double threshold;
+  final WorkoutThreshold? thresholdConfig;
   final DateTime? sessionStartedAt;
 
   WorkoutMeasureState copyWith({
@@ -34,6 +36,7 @@ class WorkoutMeasureState {
     int? count,
     bool? isMeasuring,
     double? threshold,
+    WorkoutThreshold? thresholdConfig,
     DateTime? sessionStartedAt,
     bool clearSessionStartedAt = false,
   }) {
@@ -43,6 +46,7 @@ class WorkoutMeasureState {
       count: count ?? this.count,
       isMeasuring: isMeasuring ?? this.isMeasuring,
       threshold: threshold ?? this.threshold,
+      thresholdConfig: thresholdConfig ?? this.thresholdConfig,
       sessionStartedAt: clearSessionStartedAt
           ? null
           : sessionStartedAt ?? this.sessionStartedAt,
@@ -72,17 +76,26 @@ class WorkoutMeasureViewModel extends StateNotifier<WorkoutMeasureState> {
     final getThreshold = _ref.read(getWorkoutThresholdUseCaseProvider);
     final threshold = await getThreshold(exerciseType);
     state = state.copyWith(
-      threshold: threshold?.accelerationMagnitude ?? state.threshold,
+      threshold: threshold?.accelerationThreshold ?? state.threshold,
+      thresholdConfig: threshold,
     );
   }
 
   void start() {
     if (state.isMeasuring) return;
 
-    _counter = WorkoutCounter(threshold: state.threshold);
+    final thresholdConfig =
+        state.thresholdConfig ??
+        WorkoutThreshold.normalized(
+          exerciseType: state.exerciseType,
+          accelerationMagnitude: state.threshold,
+        );
+    _counter = WorkoutCounter.fromThreshold(thresholdConfig);
     state = state.copyWith(
       count: 0,
       isMeasuring: true,
+      threshold: thresholdConfig.accelerationThreshold,
+      thresholdConfig: thresholdConfig,
       sessionStartedAt: DateTime.now(),
     );
 
@@ -94,7 +107,10 @@ class WorkoutMeasureViewModel extends StateNotifier<WorkoutMeasureState> {
         magnetometer: state.snapshot.magnetometer,
       );
       state = state.copyWith(snapshot: snapshot);
-      _updateCount(vector.magnitude);
+      _updateCount(
+        accelerationMagnitude: vector.magnitude,
+        gyroscopeMagnitude: snapshot.gyroscope.magnitude,
+      );
     });
 
     _gyroscopeSubscription = gyroscopeEventStream().listen((event) {
@@ -151,10 +167,17 @@ class WorkoutMeasureViewModel extends StateNotifier<WorkoutMeasureState> {
     _counter?.reset();
   }
 
-  void _updateCount(double accelerationMagnitude) {
+  void _updateCount({
+    required double accelerationMagnitude,
+    required double gyroscopeMagnitude,
+  }) {
     if (!state.isMeasuring) return;
 
-    if (_counter?.update(accelerationMagnitude) ?? false) {
+    if (_counter?.update(
+          accelerationMagnitude,
+          gyroscopeMagnitude: gyroscopeMagnitude,
+        ) ??
+        false) {
       state = state.copyWith(count: state.count + 1);
     }
   }

@@ -56,10 +56,8 @@ class ProfilePage extends ConsumerWidget {
 
     return SafeArea(
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         children: [
-          const Text('마이페이지', style: AppTextStyles.titleLarge),
-          const SizedBox(height: 24),
           profile.when(
             data: (value) =>
                 ProfileHeader(name: value.name, imagePath: value.imagePath),
