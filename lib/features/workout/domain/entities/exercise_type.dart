@@ -1,12 +1,12 @@
 enum ExerciseType {
   pushUp(
     slug: 'push-up',
-    label: '푸쉬업',
-    assetPath: 'assets/buttons/btn_push_up.png',
+    label: 'PUSH UP',
+    assetPath: 'assets/buttons/btn_push_up.jpeg',
   ),
   pullUp(
     slug: 'pull-up',
-    label: '풀업',
+    label: 'PULL UP',
     assetPath: 'assets/buttons/btn_pull_up.jpeg',
   );
 

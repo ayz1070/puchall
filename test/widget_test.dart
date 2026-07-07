@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:puchall/app.dart';
@@ -18,16 +19,27 @@ void main() {
         child: const PuchallApp(),
       ),
     );
+
+    expect(find.text('PUCHALL'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 1800));
     await tester.pumpAndSettle();
 
     expect(find.text('Puchall'), findsOneWidget);
-    expect(find.text('푸쉬업'), findsOneWidget);
+    expect(find.text('PUSH UP'), findsOneWidget);
 
-    await tester.tap(find.text('마이페이지'));
+    await tester.tap(find.byIcon(Icons.person_outline));
     await tester.pumpAndSettle();
 
     expect(find.text('Puchall User'), findsOneWidget);
+    expect(find.text('데일리'), findsOneWidget);
+    expect(find.byIcon(Icons.settings), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.settings));
+    await tester.pumpAndSettle();
+
     expect(find.text('프로필 수정'), findsOneWidget);
+    expect(find.text('운동 기록 삭제'), findsOneWidget);
 
     await tester.tap(find.text('프로필 수정'));
     await tester.pumpAndSettle();

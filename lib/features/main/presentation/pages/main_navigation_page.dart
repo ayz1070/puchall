@@ -30,7 +30,18 @@ class MainNavigationPage extends StatelessWidget {
     final title = currentIndex == 1 ? '마이페이지' : 'Puchall';
 
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(
+        title: Text(title),
+        actions: currentIndex == 1
+            ? [
+                IconButton(
+                  onPressed: () => context.push(AppRoutes.profileSettings),
+                  icon: const Icon(Icons.settings),
+                  tooltip: '설정',
+                ),
+              ]
+            : null,
+      ),
       body: child,
       bottomNavigationBar: DecoratedBox(
         decoration: const BoxDecoration(
@@ -43,16 +54,20 @@ class MainNavigationPage extends StatelessWidget {
             child: BottomNavigationBar(
               currentIndex: currentIndex.clamp(0, 1),
               onTap: (index) => _goToTab(context, index),
+              showSelectedLabels: false,
+              showUnselectedLabels: false,
               items: const [
                 BottomNavigationBarItem(
                   icon: Icon(Icons.home_outlined),
                   activeIcon: Icon(Icons.home),
-                  label: '홈',
+                  label: '',
+                  tooltip: '홈',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.person_outline),
                   activeIcon: Icon(Icons.person),
-                  label: '마이페이지',
+                  label: '',
+                  tooltip: '마이페이지',
                 ),
               ],
             ),

@@ -46,16 +46,24 @@ class ThresholdSetupPage extends ConsumerWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
+                    '지자기 최대 ${state.maxMagnetometerMagnitude.toStringAsFixed(2)}',
+                    style: AppTextStyles.label,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
                     state.savedThreshold == null
                         ? '저장된 기준치 -'
-                        : '저장됨 가속도 ${state.savedThreshold!.accelerationMagnitude.toStringAsFixed(2)} · 자이로 ${state.savedThreshold!.gyroscopeMagnitude.toStringAsFixed(2)}',
+                        : '저장됨 가속도 ${state.savedThreshold!.accelerationMagnitude.toStringAsFixed(2)} · 자이로 ${state.savedThreshold!.gyroscopeMagnitude.toStringAsFixed(2)} · 지자기 ${state.savedThreshold!.magnetometerMagnitude.toStringAsFixed(2)}',
                     style: AppTextStyles.body,
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
-            SensorValuePanel(snapshot: state.snapshot),
+            SensorValuePanel(
+              snapshot: state.snapshot,
+              thresholdConfig: state.previewThreshold,
+            ),
             const SizedBox(height: 16),
             AppButton(
               label: state.isCapturing ? '측정 종료 및 저장' : '기준치 측정 시작',
@@ -66,7 +74,7 @@ class ThresholdSetupPage extends ConsumerWidget {
                       if (!context.mounted) return;
                       final message = savedThreshold == null
                           ? '측정된 센서값이 없어 기준치를 저장하지 않았습니다.'
-                          : '기준치를 저장했습니다. 가속도 ${savedThreshold.accelerationMagnitude.toStringAsFixed(2)}, 자이로 ${savedThreshold.gyroscopeMagnitude.toStringAsFixed(2)}';
+                          : '기준치를 저장했습니다. 가속도 ${savedThreshold.accelerationMagnitude.toStringAsFixed(2)}, 자이로 ${savedThreshold.gyroscopeMagnitude.toStringAsFixed(2)}, 지자기 ${savedThreshold.magnetometerMagnitude.toStringAsFixed(2)}';
                       ScaffoldMessenger.of(
                         context,
                       ).showSnackBar(SnackBar(content: Text(message)));

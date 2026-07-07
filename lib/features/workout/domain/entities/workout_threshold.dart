@@ -5,9 +5,11 @@ class WorkoutThreshold {
     required this.exerciseType,
     required this.accelerationMagnitude,
     this.gyroscopeMagnitude = defaultGyroscopeMagnitude,
+    this.magnetometerMagnitude = defaultMagnetometerMagnitude,
     this.sampleDurationMs = defaultSampleDurationMs,
     this.accelerationTriggerRatio = defaultAccelerationTriggerRatio,
     this.gyroscopeTriggerRatio = defaultGyroscopeTriggerRatio,
+    this.magnetometerTriggerRatio = defaultMagnetometerTriggerRatio,
     this.releaseRatio = defaultReleaseRatio,
     this.cooldownMs = defaultCooldownMs,
   });
@@ -16,9 +18,11 @@ class WorkoutThreshold {
     required ExerciseType exerciseType,
     required double accelerationMagnitude,
     double gyroscopeMagnitude = defaultGyroscopeMagnitude,
+    double magnetometerMagnitude = defaultMagnetometerMagnitude,
     int sampleDurationMs = defaultSampleDurationMs,
     double accelerationTriggerRatio = defaultAccelerationTriggerRatio,
     double gyroscopeTriggerRatio = defaultGyroscopeTriggerRatio,
+    double magnetometerTriggerRatio = defaultMagnetometerTriggerRatio,
     double releaseRatio = defaultReleaseRatio,
     int cooldownMs = defaultCooldownMs,
   }) {
@@ -30,6 +34,9 @@ class WorkoutThreshold {
       gyroscopeMagnitude: gyroscopeMagnitude <= 0
           ? defaultGyroscopeMagnitude
           : gyroscopeMagnitude,
+      magnetometerMagnitude: magnetometerMagnitude <= 0
+          ? defaultMagnetometerMagnitude
+          : magnetometerMagnitude,
       sampleDurationMs: sampleDurationMs <= 0
           ? defaultSampleDurationMs
           : sampleDurationMs,
@@ -41,6 +48,10 @@ class WorkoutThreshold {
         gyroscopeTriggerRatio,
         defaultGyroscopeTriggerRatio,
       ),
+      magnetometerTriggerRatio: _validRatio(
+        magnetometerTriggerRatio,
+        defaultMagnetometerTriggerRatio,
+      ),
       releaseRatio: _validRatio(releaseRatio, defaultReleaseRatio),
       cooldownMs: cooldownMs < 0 ? defaultCooldownMs : cooldownMs,
     );
@@ -48,18 +59,22 @@ class WorkoutThreshold {
 
   static const defaultAccelerationMagnitude = 18.0;
   static const defaultGyroscopeMagnitude = 1.2;
+  static const defaultMagnetometerMagnitude = 45.0;
   static const defaultSampleDurationMs = 1200;
-  static const defaultAccelerationTriggerRatio = 0.75;
-  static const defaultGyroscopeTriggerRatio = 0.6;
+  static const defaultAccelerationTriggerRatio = 0.9;
+  static const defaultGyroscopeTriggerRatio = 0.9;
+  static const defaultMagnetometerTriggerRatio = 0.9;
   static const defaultReleaseRatio = 0.55;
   static const defaultCooldownMs = 600;
 
   final ExerciseType exerciseType;
   final double accelerationMagnitude;
   final double gyroscopeMagnitude;
+  final double magnetometerMagnitude;
   final int sampleDurationMs;
   final double accelerationTriggerRatio;
   final double gyroscopeTriggerRatio;
+  final double magnetometerTriggerRatio;
   final double releaseRatio;
   final int cooldownMs;
 
@@ -68,14 +83,19 @@ class WorkoutThreshold {
 
   double get gyroscopeThreshold => gyroscopeMagnitude * gyroscopeTriggerRatio;
 
+  double get magnetometerThreshold =>
+      magnetometerMagnitude * magnetometerTriggerRatio;
+
   Map<String, dynamic> toJson() {
     return {
       'exerciseType': exerciseType.slug,
       'accelerationMagnitude': accelerationMagnitude,
       'gyroscopeMagnitude': gyroscopeMagnitude,
+      'magnetometerMagnitude': magnetometerMagnitude,
       'sampleDurationMs': sampleDurationMs,
       'accelerationTriggerRatio': accelerationTriggerRatio,
       'gyroscopeTriggerRatio': gyroscopeTriggerRatio,
+      'magnetometerTriggerRatio': magnetometerTriggerRatio,
       'releaseRatio': releaseRatio,
       'cooldownMs': cooldownMs,
     };
@@ -90,6 +110,9 @@ class WorkoutThreshold {
       gyroscopeMagnitude:
           (json['gyroscopeMagnitude'] as num?)?.toDouble() ??
           defaultGyroscopeMagnitude,
+      magnetometerMagnitude:
+          (json['magnetometerMagnitude'] as num?)?.toDouble() ??
+          defaultMagnetometerMagnitude,
       sampleDurationMs:
           (json['sampleDurationMs'] as num?)?.toInt() ??
           defaultSampleDurationMs,
@@ -99,6 +122,9 @@ class WorkoutThreshold {
       gyroscopeTriggerRatio:
           (json['gyroscopeTriggerRatio'] as num?)?.toDouble() ??
           defaultGyroscopeTriggerRatio,
+      magnetometerTriggerRatio:
+          (json['magnetometerTriggerRatio'] as num?)?.toDouble() ??
+          defaultMagnetometerTriggerRatio,
       releaseRatio:
           (json['releaseRatio'] as num?)?.toDouble() ?? defaultReleaseRatio,
       cooldownMs: (json['cooldownMs'] as num?)?.toInt() ?? defaultCooldownMs,

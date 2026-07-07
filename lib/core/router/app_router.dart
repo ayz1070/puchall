@@ -6,6 +6,8 @@ import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/main/presentation/pages/main_navigation_page.dart';
 import '../../features/profile/presentation/pages/profile_edit_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
+import '../../features/profile/presentation/pages/profile_settings_page.dart';
+import '../../features/splash/presentation/pages/splash_page.dart';
 import '../../features/workout/domain/entities/exercise_type.dart';
 import '../../features/workout/presentation/pages/threshold_setup_page.dart';
 import '../../features/workout/presentation/pages/workout_measure_page.dart';
@@ -16,9 +18,13 @@ final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: AppRoutes.home,
+    initialLocation: AppRoutes.splash,
     routes: [
-      GoRoute(path: '/', redirect: (context, state) => AppRoutes.home),
+      GoRoute(path: '/', redirect: (context, state) => AppRoutes.splash),
+      GoRoute(
+        path: AppRoutes.splash,
+        builder: (context, state) => const SplashPage(),
+      ),
       ShellRoute(
         builder: (context, state, child) {
           final location = state.uri.path;
@@ -36,6 +42,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const ProfilePage(),
           ),
         ],
+      ),
+      GoRoute(
+        path: AppRoutes.profileSettings,
+        builder: (context, state) => const ProfileSettingsPage(),
       ),
       GoRoute(
         path: AppRoutes.profileEdit,

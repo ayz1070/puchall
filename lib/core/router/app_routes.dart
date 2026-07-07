@@ -3,9 +3,11 @@ import '../../features/workout/domain/entities/exercise_type.dart';
 class AppRoutes {
   const AppRoutes._();
 
+  static const splash = '/splash';
   static const mainBase = '/main';
   static const home = '$mainBase/home';
   static const profile = '$mainBase/profile';
+  static const profileSettings = '/profile/settings';
   static const profileEdit = '/profile/edit';
   static const workoutBase = '/workout';
   static const workout = '$workoutBase/:exercise';

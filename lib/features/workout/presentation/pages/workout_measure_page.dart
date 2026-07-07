@@ -65,7 +65,10 @@ class WorkoutMeasurePage extends ConsumerWidget {
                       style: AppTextStyles.body,
                     ),
                     const SizedBox(height: 24),
-                    SensorValuePanel(snapshot: state.snapshot),
+                    SensorValuePanel(
+                      snapshot: state.snapshot,
+                      thresholdConfig: state.thresholdConfig,
+                    ),
                   ],
                 ),
               ),

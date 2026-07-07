@@ -25,16 +25,19 @@ void main() {
       expect(threshold.accelerationMagnitude, 24.5);
     });
 
-    test('normalizes gyroscope magnitude and derives trigger thresholds', () {
+    test('normalizes sensor magnitudes and derives trigger thresholds', () {
       final threshold = WorkoutThreshold.normalized(
         exerciseType: ExerciseType.pushUp,
         accelerationMagnitude: 20,
         gyroscopeMagnitude: 2,
+        magnetometerMagnitude: 50,
       );
 
       expect(threshold.gyroscopeMagnitude, 2);
-      expect(threshold.accelerationThreshold, 15);
-      expect(threshold.gyroscopeThreshold, 1.2);
+      expect(threshold.magnetometerMagnitude, 50);
+      expect(threshold.accelerationThreshold, 18);
+      expect(threshold.gyroscopeThreshold, 1.8);
+      expect(threshold.magnetometerThreshold, 45);
     });
 
     test('loads legacy json with defaults for new fields', () {
@@ -47,6 +50,10 @@ void main() {
       expect(
         threshold.gyroscopeMagnitude,
         WorkoutThreshold.defaultGyroscopeMagnitude,
+      );
+      expect(
+        threshold.magnetometerMagnitude,
+        WorkoutThreshold.defaultMagnetometerMagnitude,
       );
       expect(threshold.cooldownMs, WorkoutThreshold.defaultCooldownMs);
     });

@@ -17,6 +17,7 @@ class ThresholdSetupState {
     this.isCapturing = false,
     this.maxAccelerationMagnitude = 0,
     this.maxGyroscopeMagnitude = 0,
+    this.maxMagnetometerMagnitude = 0,
     this.sampleDurationMs = 0,
     this.savedThreshold,
   });
@@ -26,14 +27,32 @@ class ThresholdSetupState {
   final bool isCapturing;
   final double maxAccelerationMagnitude;
   final double maxGyroscopeMagnitude;
+  final double maxMagnetometerMagnitude;
   final int sampleDurationMs;
   final WorkoutThreshold? savedThreshold;
+
+  WorkoutThreshold? get previewThreshold {
+    if (maxAccelerationMagnitude <= 0 ||
+        maxGyroscopeMagnitude <= 0 ||
+        maxMagnetometerMagnitude <= 0) {
+      return savedThreshold;
+    }
+
+    return WorkoutThreshold.normalized(
+      exerciseType: exerciseType,
+      accelerationMagnitude: maxAccelerationMagnitude,
+      gyroscopeMagnitude: maxGyroscopeMagnitude,
+      magnetometerMagnitude: maxMagnetometerMagnitude,
+      sampleDurationMs: sampleDurationMs,
+    );
+  }
 
   ThresholdSetupState copyWith({
     SensorSnapshot? snapshot,
     bool? isCapturing,
     double? maxAccelerationMagnitude,
     double? maxGyroscopeMagnitude,
+    double? maxMagnetometerMagnitude,
     int? sampleDurationMs,
     WorkoutThreshold? savedThreshold,
   }) {
@@ -45,6 +64,8 @@ class ThresholdSetupState {
           maxAccelerationMagnitude ?? this.maxAccelerationMagnitude,
       maxGyroscopeMagnitude:
           maxGyroscopeMagnitude ?? this.maxGyroscopeMagnitude,
+      maxMagnetometerMagnitude:
+          maxMagnetometerMagnitude ?? this.maxMagnetometerMagnitude,
       sampleDurationMs: sampleDurationMs ?? this.sampleDurationMs,
       savedThreshold: savedThreshold ?? this.savedThreshold,
     );
@@ -84,6 +105,7 @@ class ThresholdSetupViewModel extends StateNotifier<ThresholdSetupState> {
       isCapturing: true,
       maxAccelerationMagnitude: 0,
       maxGyroscopeMagnitude: 0,
+      maxMagnetometerMagnitude: 0,
       sampleDurationMs: 0,
     );
 
@@ -120,12 +142,18 @@ class ThresholdSetupViewModel extends StateNotifier<ThresholdSetupState> {
     });
 
     _magnetometerSubscription = magnetometerEventStream().listen((event) {
+      final vector = SensorVector(x: event.x, y: event.y, z: event.z);
+      final maxValue = vector.magnitude > state.maxMagnetometerMagnitude
+          ? vector.magnitude
+          : state.maxMagnetometerMagnitude;
+
       state = state.copyWith(
         snapshot: SensorSnapshot(
           accelerometer: state.snapshot.accelerometer,
           gyroscope: state.snapshot.gyroscope,
-          magnetometer: SensorVector(x: event.x, y: event.y, z: event.z),
+          magnetometer: vector,
         ),
+        maxMagnetometerMagnitude: maxValue,
       );
     });
   }
@@ -136,12 +164,15 @@ class ThresholdSetupViewModel extends StateNotifier<ThresholdSetupState> {
 
     final accelerationMagnitude = state.maxAccelerationMagnitude;
     final gyroscopeMagnitude = state.maxGyroscopeMagnitude;
+    final magnetometerMagnitude = state.maxMagnetometerMagnitude;
     final sampleDurationMs = _captureStartedAt == null
         ? WorkoutThreshold.defaultSampleDurationMs
         : DateTime.now().difference(_captureStartedAt!).inMilliseconds;
     _captureStartedAt = null;
 
-    if (accelerationMagnitude <= 0 || gyroscopeMagnitude <= 0) {
+    if (accelerationMagnitude <= 0 ||
+        gyroscopeMagnitude <= 0 ||
+        magnetometerMagnitude <= 0) {
       state = state.copyWith(isCapturing: false);
       return null;
     }
@@ -150,6 +181,7 @@ class ThresholdSetupViewModel extends StateNotifier<ThresholdSetupState> {
       exerciseType: state.exerciseType,
       accelerationMagnitude: accelerationMagnitude,
       gyroscopeMagnitude: gyroscopeMagnitude,
+      magnetometerMagnitude: magnetometerMagnitude,
       sampleDurationMs: sampleDurationMs,
     );
     final saveThreshold = _ref.read(saveWorkoutThresholdUseCaseProvider);

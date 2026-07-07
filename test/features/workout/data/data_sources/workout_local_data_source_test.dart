@@ -21,6 +21,7 @@ void main() {
           exerciseType: ExerciseType.pushUp,
           accelerationMagnitude: 22.5,
           gyroscopeMagnitude: 2.5,
+          magnetometerMagnitude: 48.5,
           sampleDurationMs: 1400,
         ),
       );
@@ -30,6 +31,7 @@ void main() {
       expect(threshold?.exerciseType, ExerciseType.pushUp);
       expect(threshold?.accelerationMagnitude, 22.5);
       expect(threshold?.gyroscopeMagnitude, 2.5);
+      expect(threshold?.magnetometerMagnitude, 48.5);
       expect(threshold?.sampleDurationMs, 1400);
       expect(await dataSource.getThreshold(ExerciseType.pullUp), isNull);
     });
