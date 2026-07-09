@@ -8,6 +8,7 @@ import '../../di/workout_dependencies.dart';
 import '../../domain/entities/exercise_type.dart';
 import '../../domain/entities/sensor_snapshot.dart';
 import '../../domain/entities/workout_threshold.dart';
+import '../../domain/services/workout_threshold_calibrator.dart';
 import 'workout_measure_view_model.dart';
 
 class ThresholdSetupState {
@@ -19,6 +20,9 @@ class ThresholdSetupState {
     this.maxGyroscopeMagnitude = 0,
     this.maxMagnetometerMagnitude = 0,
     this.sampleDurationMs = 0,
+    this.remainingSeconds =
+        WorkoutThresholdCalibrator.calibrationDurationMs ~/
+        Duration.millisecondsPerSecond,
     this.savedThreshold,
   });
 
@@ -29,6 +33,7 @@ class ThresholdSetupState {
   final double maxGyroscopeMagnitude;
   final double maxMagnetometerMagnitude;
   final int sampleDurationMs;
+  final int remainingSeconds;
   final WorkoutThreshold? savedThreshold;
 
   WorkoutThreshold? get previewThreshold {
@@ -54,6 +59,7 @@ class ThresholdSetupState {
     double? maxGyroscopeMagnitude,
     double? maxMagnetometerMagnitude,
     int? sampleDurationMs,
+    int? remainingSeconds,
     WorkoutThreshold? savedThreshold,
   }) {
     return ThresholdSetupState(
@@ -67,6 +73,7 @@ class ThresholdSetupState {
       maxMagnetometerMagnitude:
           maxMagnetometerMagnitude ?? this.maxMagnetometerMagnitude,
       sampleDurationMs: sampleDurationMs ?? this.sampleDurationMs,
+      remainingSeconds: remainingSeconds ?? this.remainingSeconds,
       savedThreshold: savedThreshold ?? this.savedThreshold,
     );
   }
@@ -80,7 +87,7 @@ final thresholdSetupProvider = StateNotifierProvider.autoDispose
 class ThresholdSetupViewModel extends StateNotifier<ThresholdSetupState> {
   ThresholdSetupViewModel(this._ref, ExerciseType exerciseType)
     : super(ThresholdSetupState(exerciseType: exerciseType)) {
-    _ref.onDispose(_cancelSubscription);
+    _ref.onDispose(_cancelCapture);
     _loadSavedThreshold(exerciseType);
   }
 
@@ -88,7 +95,12 @@ class ThresholdSetupViewModel extends StateNotifier<ThresholdSetupState> {
   StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
   StreamSubscription<GyroscopeEvent>? _gyroscopeSubscription;
   StreamSubscription<MagnetometerEvent>? _magnetometerSubscription;
+  Timer? _countdownTimer;
   DateTime? _captureStartedAt;
+  bool _isSaving = false;
+  final List<WorkoutThresholdSample> _samples = [];
+  final WorkoutThresholdCalibrator _calibrator =
+      const WorkoutThresholdCalibrator();
 
   Future<void> _loadSavedThreshold(ExerciseType exerciseType) async {
     final getThreshold = _ref.read(getWorkoutThresholdUseCaseProvider);
@@ -101,13 +113,18 @@ class ThresholdSetupViewModel extends StateNotifier<ThresholdSetupState> {
     if (state.isCapturing) return;
 
     _captureStartedAt = DateTime.now();
+    _samples.clear();
     state = state.copyWith(
       isCapturing: true,
       maxAccelerationMagnitude: 0,
       maxGyroscopeMagnitude: 0,
       maxMagnetometerMagnitude: 0,
       sampleDurationMs: 0,
+      remainingSeconds:
+          WorkoutThresholdCalibrator.calibrationDurationMs ~/
+          Duration.millisecondsPerSecond,
     );
+    _startCountdown();
 
     _accelerometerSubscription = accelerometerEventStream().listen((event) {
       final vector = SensorVector(x: event.x, y: event.y, z: event.z);
@@ -123,6 +140,7 @@ class ThresholdSetupViewModel extends StateNotifier<ThresholdSetupState> {
         ),
         maxAccelerationMagnitude: maxValue,
       );
+      _recordSample();
     });
 
     _gyroscopeSubscription = gyroscopeEventStream().listen((event) {
@@ -139,6 +157,7 @@ class ThresholdSetupViewModel extends StateNotifier<ThresholdSetupState> {
         ),
         maxGyroscopeMagnitude: maxValue,
       );
+      _recordSample();
     });
 
     _magnetometerSubscription = magnetometerEventStream().listen((event) {
@@ -155,35 +174,37 @@ class ThresholdSetupViewModel extends StateNotifier<ThresholdSetupState> {
         ),
         maxMagnetometerMagnitude: maxValue,
       );
+      _recordSample();
     });
   }
 
   Future<WorkoutThreshold?> stopAndSave() async {
-    if (!state.isCapturing) return null;
+    if (!state.isCapturing || _isSaving) return null;
+    _isSaving = true;
+    _countdownTimer?.cancel();
+    _countdownTimer = null;
     _cancelSubscription();
 
-    final accelerationMagnitude = state.maxAccelerationMagnitude;
-    final gyroscopeMagnitude = state.maxGyroscopeMagnitude;
-    final magnetometerMagnitude = state.maxMagnetometerMagnitude;
     final sampleDurationMs = _captureStartedAt == null
         ? WorkoutThreshold.defaultSampleDurationMs
         : DateTime.now().difference(_captureStartedAt!).inMilliseconds;
     _captureStartedAt = null;
 
-    if (accelerationMagnitude <= 0 ||
-        gyroscopeMagnitude <= 0 ||
-        magnetometerMagnitude <= 0) {
-      state = state.copyWith(isCapturing: false);
+    final threshold = _calibrator.calibrate(
+      exerciseType: state.exerciseType,
+      samples: _samples,
+      sampleDurationMs: sampleDurationMs,
+    );
+
+    if (threshold == null) {
+      state = state.copyWith(
+        isCapturing: false,
+        sampleDurationMs: sampleDurationMs,
+      );
+      _isSaving = false;
       return null;
     }
 
-    final threshold = WorkoutThreshold.normalized(
-      exerciseType: state.exerciseType,
-      accelerationMagnitude: accelerationMagnitude,
-      gyroscopeMagnitude: gyroscopeMagnitude,
-      magnetometerMagnitude: magnetometerMagnitude,
-      sampleDurationMs: sampleDurationMs,
-    );
     final saveThreshold = _ref.read(saveWorkoutThresholdUseCaseProvider);
     await saveThreshold(threshold);
 
@@ -193,7 +214,52 @@ class ThresholdSetupViewModel extends StateNotifier<ThresholdSetupState> {
       savedThreshold: threshold,
     );
     _ref.invalidate(workoutMeasureProvider(state.exerciseType));
+    _isSaving = false;
     return threshold;
+  }
+
+  void _startCountdown() {
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!state.isCapturing) {
+        timer.cancel();
+        return;
+      }
+
+      final startedAt = _captureStartedAt;
+      if (startedAt == null) return;
+
+      final elapsedMs = DateTime.now().difference(startedAt).inMilliseconds;
+      final remainingMs =
+          WorkoutThresholdCalibrator.calibrationDurationMs - elapsedMs;
+      final remainingSeconds = (remainingMs / Duration.millisecondsPerSecond)
+          .ceil()
+          .clamp(
+            0,
+            WorkoutThresholdCalibrator.calibrationDurationMs ~/
+                Duration.millisecondsPerSecond,
+          );
+      state = state.copyWith(remainingSeconds: remainingSeconds);
+
+      if (remainingMs <= 0) {
+        timer.cancel();
+        stopAndSave();
+      }
+    });
+  }
+
+  void _recordSample() {
+    final startedAt = _captureStartedAt;
+    if (startedAt == null || !state.isCapturing) return;
+
+    _samples.add(
+      WorkoutThresholdSample(
+        elapsedMs: DateTime.now().difference(startedAt).inMilliseconds,
+        accelerationMagnitude: state.snapshot.accelerometer.magnitude,
+        gyroscopeMagnitude: state.snapshot.gyroscope.magnitude,
+        magnetometerMagnitude: state.snapshot.magnetometer.magnitude,
+      ),
+    );
   }
 
   void _cancelSubscription() {
@@ -203,5 +269,11 @@ class ThresholdSetupViewModel extends StateNotifier<ThresholdSetupState> {
     _accelerometerSubscription = null;
     _gyroscopeSubscription = null;
     _magnetometerSubscription = null;
+  }
+
+  void _cancelCapture() {
+    _countdownTimer?.cancel();
+    _countdownTimer = null;
+    _cancelSubscription();
   }
 }

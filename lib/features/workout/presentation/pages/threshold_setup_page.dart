@@ -31,8 +31,13 @@ class ThresholdSetupPage extends ConsumerWidget {
                   const Text('기준치 측정', style: AppTextStyles.titleMedium),
                   const SizedBox(height: 8),
                   Text(
-                    '1회 동작의 가속도와 자이로 패턴을 기준치로 저장합니다.',
+                    '30초 동안 평소처럼 반복하면 가장 안정적인 구간과 피크를 기준으로 저장합니다.',
                     style: AppTextStyles.body,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    '남은 시간 ${state.remainingSeconds.toString().padLeft(2, '0')}초',
+                    style: AppTextStyles.titleMedium,
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -66,7 +71,7 @@ class ThresholdSetupPage extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
             AppButton(
-              label: state.isCapturing ? '측정 종료 및 저장' : '기준치 측정 시작',
+              label: state.isCapturing ? '측정 종료 및 저장' : '30초 기준치 측정 시작',
               icon: state.isCapturing ? Icons.save : Icons.play_arrow,
               onPressed: state.isCapturing
                   ? () async {
