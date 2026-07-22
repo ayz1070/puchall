@@ -54,6 +54,12 @@ class WorkoutLocalDataSource {
     await _preferences.remove(_sessionsKey);
   }
 
+  Future<void> clearThresholds() async {
+    for (final exerciseType in ExerciseType.values) {
+      await _preferences.remove(_thresholdKey(exerciseType));
+    }
+  }
+
   static String _thresholdKey(ExerciseType exerciseType) {
     return '$_thresholdPrefix${exerciseType.slug}';
   }

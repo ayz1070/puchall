@@ -9,11 +9,12 @@ import '../../../workout/domain/entities/exercise_type.dart';
 import '../../../workout/domain/entities/workout_session.dart';
 
 class DailyWorkoutLineChart extends StatelessWidget {
-  const DailyWorkoutLineChart({super.key, required this.sessions});
+  const DailyWorkoutLineChart({super.key, required this.sessions, this.onTap});
 
   static const _visibleDays = 7;
 
   final List<WorkoutSession> sessions;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -22,28 +23,44 @@ class DailyWorkoutLineChart extends StatelessWidget {
       (point) => point.pushUpCount > 0 || point.pullUpCount > 0,
     );
 
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('데일리', style: AppTextStyles.titleMedium),
-          const SizedBox(height: 12),
-          if (hasRecords) ...[
-            const _ChartLegend(),
-            const SizedBox(height: 14),
-            SizedBox(
-              height: 210,
-              child: CustomPaint(
-                painter: _DailyWorkoutLineChartPainter(points: points),
-                child: const SizedBox.expand(),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text('데일리', style: AppTextStyles.titleMedium),
+                ),
+                if (onTap != null)
+                  const Icon(
+                    Icons.chevron_right,
+                    color: AppColors.textSecondary,
+                    size: 22,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (hasRecords) ...[
+              const _ChartLegend(),
+              const SizedBox(height: 14),
+              SizedBox(
+                height: 210,
+                child: CustomPaint(
+                  painter: _DailyWorkoutLineChartPainter(points: points),
+                  child: const SizedBox.expand(),
+                ),
               ),
-            ),
-          ] else
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 28),
-              child: Text('아직 운동 기록이 없습니다.', style: AppTextStyles.body),
-            ),
-        ],
+            ] else
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 28),
+                child: Text('아직 운동 기록이 없습니다.', style: AppTextStyles.body),
+              ),
+          ],
+        ),
       ),
     );
   }

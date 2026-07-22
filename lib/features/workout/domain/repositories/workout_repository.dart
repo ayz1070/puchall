@@ -12,4 +12,6 @@ abstract class WorkoutRepository {
   Future<void> saveSession(WorkoutSession session);
 
   Future<void> clearSessions();
+
+  Future<void> clearThresholds();
 }

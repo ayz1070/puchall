@@ -30,6 +30,11 @@ class WorkoutRepositoryImpl implements WorkoutRepository {
   }
 
   @override
+  Future<void> clearThresholds() {
+    return _dataSource.clearThresholds();
+  }
+
+  @override
   Future<void> saveThreshold(WorkoutThreshold threshold) {
     return _dataSource.saveThreshold(threshold);
   }

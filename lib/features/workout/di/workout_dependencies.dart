@@ -5,6 +5,7 @@ import '../data/data_sources/workout_local_data_source.dart';
 import '../data/repositories/workout_repository_impl.dart';
 import '../domain/repositories/workout_repository.dart';
 import '../domain/use_cases/clear_workout_sessions.dart';
+import '../domain/use_cases/clear_workout_thresholds.dart';
 import '../domain/use_cases/get_workout_sessions.dart';
 import '../domain/use_cases/get_workout_threshold.dart';
 import '../domain/use_cases/save_workout_session.dart';
@@ -44,4 +45,10 @@ final clearWorkoutSessionsUseCaseProvider = Provider<ClearWorkoutSessions>((
   ref,
 ) {
   return ClearWorkoutSessions(ref.watch(workoutRepositoryProvider));
+});
+
+final clearWorkoutThresholdsUseCaseProvider = Provider<ClearWorkoutThresholds>((
+  ref,
+) {
+  return ClearWorkoutThresholds(ref.watch(workoutRepositoryProvider));
 });

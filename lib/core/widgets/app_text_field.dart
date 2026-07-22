@@ -8,17 +8,20 @@ class AppTextField extends StatelessWidget {
     required this.controller,
     required this.label,
     this.textInputAction,
+    this.onSubmitted,
   });
 
   final TextEditingController controller;
   final String label;
   final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
       textInputAction: textInputAction,
+      onSubmitted: onSubmitted,
       decoration: InputDecoration(
         labelText: label,
         filled: true,
