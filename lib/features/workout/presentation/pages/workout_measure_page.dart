@@ -7,8 +7,8 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../domain/entities/exercise_type.dart';
+import '../../domain/entities/workout_tracking_snapshot.dart';
 import '../viewmodels/workout_measure_view_model.dart';
-import '../widgets/sensor_value_panel.dart';
 
 class WorkoutMeasurePage extends ConsumerWidget {
   const WorkoutMeasurePage({super.key, required this.exerciseType});
@@ -60,14 +60,20 @@ class WorkoutMeasurePage extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
+                    Text('${state.count}개', style: AppTextStyles.titleMedium),
+                    const SizedBox(height: 20),
                     Text(
-                      '기준치 ${state.threshold.toStringAsFixed(2)}',
+                      _statusLabel(state.status),
                       style: AppTextStyles.body,
+                      textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 24),
-                    SensorValuePanel(
-                      snapshot: state.snapshot,
-                      thresholdConfig: state.thresholdConfig,
+                    const SizedBox(height: 12),
+                    Text(
+                      state.isMeasuring
+                          ? '휴대폰을 바지 주머니에 넣은 상태로 운동해 주세요.'
+                          : '시작 후 휴대폰을 바지 주머니에 넣어 주세요. 앱을 나가도 측정은 계속됩니다.',
+                      style: AppTextStyles.body,
+                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),
@@ -98,7 +104,9 @@ class WorkoutMeasurePage extends ConsumerWidget {
                                   SnackBar(content: Text(message)),
                                 );
                               }
-                            : notifier.start,
+                            : () {
+                                notifier.start();
+                              },
                       ),
                     ),
                   ),
@@ -116,7 +124,9 @@ class WorkoutMeasurePage extends ConsumerWidget {
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                        onPressed: notifier.reset,
+                        onPressed: () {
+                          notifier.reset();
+                        },
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -135,5 +145,15 @@ class WorkoutMeasurePage extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  String _statusLabel(WorkoutTrackingStatus status) {
+    return switch (status) {
+      WorkoutTrackingStatus.measuring => '측정 중',
+      WorkoutTrackingStatus.paused => '일시정지',
+      WorkoutTrackingStatus.completed => '측정 완료',
+      WorkoutTrackingStatus.failed => '측정할 수 없습니다',
+      WorkoutTrackingStatus.idle => '측정 대기',
+    };
   }
 }

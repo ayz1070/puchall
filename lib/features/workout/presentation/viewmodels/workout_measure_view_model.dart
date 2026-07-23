@@ -2,39 +2,36 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
-import 'package:sensors_plus/sensors_plus.dart';
 
 import '../../di/workout_dependencies.dart';
 import '../../domain/entities/exercise_type.dart';
-import '../../domain/entities/sensor_snapshot.dart';
 import '../../domain/entities/workout_session.dart';
 import '../../domain/entities/workout_threshold.dart';
-import '../../domain/services/workout_counter.dart';
+import '../../domain/entities/workout_tracking_snapshot.dart';
 import 'workout_history_view_model.dart';
 
 class WorkoutMeasureState {
   const WorkoutMeasureState({
     required this.exerciseType,
-    this.snapshot = const SensorSnapshot(),
     this.count = 0,
-    this.isMeasuring = false,
+    this.status = WorkoutTrackingStatus.idle,
     this.threshold = WorkoutThreshold.defaultAccelerationMagnitude,
     this.thresholdConfig,
     this.sessionStartedAt,
   });
 
   final ExerciseType exerciseType;
-  final SensorSnapshot snapshot;
   final int count;
-  final bool isMeasuring;
+  final WorkoutTrackingStatus status;
   final double threshold;
   final WorkoutThreshold? thresholdConfig;
   final DateTime? sessionStartedAt;
 
+  bool get isMeasuring => status == WorkoutTrackingStatus.measuring;
+
   WorkoutMeasureState copyWith({
-    SensorSnapshot? snapshot,
     int? count,
-    bool? isMeasuring,
+    WorkoutTrackingStatus? status,
     double? threshold,
     WorkoutThreshold? thresholdConfig,
     DateTime? sessionStartedAt,
@@ -42,9 +39,8 @@ class WorkoutMeasureState {
   }) {
     return WorkoutMeasureState(
       exerciseType: exerciseType,
-      snapshot: snapshot ?? this.snapshot,
       count: count ?? this.count,
-      isMeasuring: isMeasuring ?? this.isMeasuring,
+      status: status ?? this.status,
       threshold: threshold ?? this.threshold,
       thresholdConfig: thresholdConfig ?? this.thresholdConfig,
       sessionStartedAt: clearSessionStartedAt
@@ -64,13 +60,12 @@ class WorkoutMeasureViewModel extends StateNotifier<WorkoutMeasureState> {
     : super(WorkoutMeasureState(exerciseType: exerciseType)) {
     _ref.onDispose(_cancelSubscriptions);
     _loadThreshold(exerciseType);
+    _subscribeTrackingState();
+    _consumeCompletedSession();
   }
 
   final Ref _ref;
-  StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
-  StreamSubscription<GyroscopeEvent>? _gyroscopeSubscription;
-  StreamSubscription<MagnetometerEvent>? _magnetometerSubscription;
-  WorkoutCounter? _counter;
+  StreamSubscription<WorkoutTrackingSnapshot>? _trackingSubscription;
 
   Future<void> _loadThreshold(ExerciseType exerciseType) async {
     final getThreshold = _ref.read(getWorkoutThresholdUseCaseProvider);
@@ -81,7 +76,7 @@ class WorkoutMeasureViewModel extends StateNotifier<WorkoutMeasureState> {
     );
   }
 
-  void start() {
+  Future<void> start() async {
     if (state.isMeasuring) return;
 
     final thresholdConfig =
@@ -90,105 +85,102 @@ class WorkoutMeasureViewModel extends StateNotifier<WorkoutMeasureState> {
           exerciseType: state.exerciseType,
           accelerationMagnitude: state.threshold,
         );
-    _counter = WorkoutCounter.fromThreshold(thresholdConfig);
     state = state.copyWith(
       count: 0,
-      isMeasuring: true,
+      status: WorkoutTrackingStatus.measuring,
       threshold: thresholdConfig.accelerationThreshold,
       thresholdConfig: thresholdConfig,
       sessionStartedAt: DateTime.now(),
     );
-
-    _accelerometerSubscription = accelerometerEventStream().listen((event) {
-      final vector = SensorVector(x: event.x, y: event.y, z: event.z);
-      final snapshot = SensorSnapshot(
-        accelerometer: vector,
-        gyroscope: state.snapshot.gyroscope,
-        magnetometer: state.snapshot.magnetometer,
-      );
-      state = state.copyWith(snapshot: snapshot);
-      _updateCount(
-        accelerationMagnitude: vector.magnitude,
-        gyroscopeMagnitude: snapshot.gyroscope.magnitude,
-      );
-    });
-
-    _gyroscopeSubscription = gyroscopeEventStream().listen((event) {
-      state = state.copyWith(
-        snapshot: SensorSnapshot(
-          accelerometer: state.snapshot.accelerometer,
-          gyroscope: SensorVector(x: event.x, y: event.y, z: event.z),
-          magnetometer: state.snapshot.magnetometer,
-        ),
-      );
-    });
-
-    _magnetometerSubscription = magnetometerEventStream().listen((event) {
-      state = state.copyWith(
-        snapshot: SensorSnapshot(
-          accelerometer: state.snapshot.accelerometer,
-          gyroscope: state.snapshot.gyroscope,
-          magnetometer: SensorVector(x: event.x, y: event.y, z: event.z),
-        ),
-      );
-    });
+    final trackingService = _ref.read(workoutTrackingServiceDataSourceProvider);
+    await trackingService.start(
+      exerciseType: state.exerciseType,
+      threshold: thresholdConfig,
+    );
   }
 
   Future<int?> stop() async {
     if (!state.isMeasuring) return null;
 
-    _cancelSubscriptions();
-    final startedAt = state.sessionStartedAt ?? DateTime.now();
-    final count = state.count;
+    final trackingService = _ref.read(workoutTrackingServiceDataSourceProvider);
+    final snapshot = await trackingService.stop();
+    final count = snapshot.count;
 
-    state = state.copyWith(isMeasuring: false, clearSessionStartedAt: true);
+    state = state.copyWith(
+      count: count,
+      status: WorkoutTrackingStatus.completed,
+      clearSessionStartedAt: true,
+    );
 
-    if (count <= 0) return count;
+    await _saveSession(snapshot);
+    return count;
+  }
 
+  Future<void> reset() async {
+    final trackingService = _ref.read(workoutTrackingServiceDataSourceProvider);
+    await trackingService.reset();
+    state = state.copyWith(count: 0);
+  }
+
+  void _subscribeTrackingState() {
+    final trackingService = _ref.read(workoutTrackingServiceDataSourceProvider);
+    _trackingSubscription = trackingService.watch().listen((snapshot) {
+      if (snapshot.exerciseType != state.exerciseType) return;
+      state = state.copyWith(
+        count: snapshot.count,
+        status: snapshot.status,
+        sessionStartedAt: snapshot.startedAt,
+        clearSessionStartedAt: snapshot.startedAt == null,
+      );
+    });
+    trackingService.getState().then((snapshot) {
+      if (!mounted || snapshot.exerciseType != state.exerciseType) return;
+      state = state.copyWith(
+        count: snapshot.count,
+        status: snapshot.status,
+        sessionStartedAt: snapshot.startedAt,
+        clearSessionStartedAt: snapshot.startedAt == null,
+      );
+    });
+  }
+
+  Future<void> _consumeCompletedSession() async {
+    final trackingService = _ref.read(workoutTrackingServiceDataSourceProvider);
+    final snapshot = await trackingService.consumeCompletedSession();
+    if (snapshot == null) return;
+    await _saveSession(snapshot);
+    if (snapshot.exerciseType != state.exerciseType) return;
+    if (!mounted) return;
+    state = state.copyWith(
+      count: snapshot.count,
+      status: WorkoutTrackingStatus.completed,
+      clearSessionStartedAt: true,
+    );
+  }
+
+  Future<void> _saveSession(WorkoutTrackingSnapshot snapshot) async {
+    if (snapshot.count <= 0) return;
+
+    final startedAt = snapshot.startedAt ?? state.sessionStartedAt;
+    final endedAt = snapshot.endedAt ?? DateTime.now();
     final saveSession = _ref.read(saveWorkoutSessionUseCaseProvider);
     await saveSession(
       WorkoutSession(
-        id: DateTime.now().microsecondsSinceEpoch.toString(),
-        exerciseType: state.exerciseType,
-        count: count,
-        startedAt: startedAt,
-        endedAt: DateTime.now(),
+        id: endedAt.microsecondsSinceEpoch.toString(),
+        exerciseType: snapshot.exerciseType,
+        count: snapshot.count,
+        startedAt: startedAt ?? endedAt,
+        endedAt: endedAt,
       ),
     );
     _ref.invalidate(workoutHistoryProvider);
     _ref.invalidate(todayWorkoutSummaryProvider);
     _ref.invalidate(dailyWorkoutSummariesProvider);
     _ref.invalidate(exerciseWorkoutSummariesProvider);
-    return count;
-  }
-
-  void reset() {
-    state = state.copyWith(count: 0);
-    _counter?.reset();
-  }
-
-  void _updateCount({
-    required double accelerationMagnitude,
-    required double gyroscopeMagnitude,
-  }) {
-    if (!state.isMeasuring) return;
-
-    if (_counter?.update(
-          accelerationMagnitude,
-          gyroscopeMagnitude: gyroscopeMagnitude,
-        ) ??
-        false) {
-      state = state.copyWith(count: state.count + 1);
-    }
   }
 
   void _cancelSubscriptions() {
-    _accelerometerSubscription?.cancel();
-    _gyroscopeSubscription?.cancel();
-    _magnetometerSubscription?.cancel();
-    _accelerometerSubscription = null;
-    _gyroscopeSubscription = null;
-    _magnetometerSubscription = null;
-    _counter = null;
+    _trackingSubscription?.cancel();
+    _trackingSubscription = null;
   }
 }

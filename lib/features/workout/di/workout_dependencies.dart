@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/data_sources/workout_local_data_source.dart';
+import '../data/data_sources/workout_tracking_service_data_source.dart';
 import '../data/repositories/workout_repository_impl.dart';
 import '../domain/repositories/workout_repository.dart';
 import '../domain/use_cases/clear_workout_sessions.dart';
@@ -18,6 +19,11 @@ final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
 final workoutLocalDataSourceProvider = Provider<WorkoutLocalDataSource>((ref) {
   return WorkoutLocalDataSource(ref.watch(sharedPreferencesProvider));
 });
+
+final workoutTrackingServiceDataSourceProvider =
+    Provider<WorkoutTrackingServiceDataSource>((ref) {
+      return WorkoutTrackingServiceDataSource();
+    });
 
 final workoutRepositoryProvider = Provider<WorkoutRepository>((ref) {
   return WorkoutRepositoryImpl(ref.watch(workoutLocalDataSourceProvider));
