@@ -29,9 +29,13 @@ class DailyRecordList extends StatelessWidget {
                 Expanded(
                   child: Text(summary.dateKey, style: AppTextStyles.label),
                 ),
-                Text(
-                  '푸쉬업 ${summary.pushUpCount} · 풀업 ${summary.pullUpCount}',
-                  style: AppTextStyles.body,
+                Flexible(
+                  child: Text(
+                    '푸쉬업 ${summary.pushUpCount} · 풀업 ${summary.pullUpCount} · 런닝 ${_formatKm(summary.runningDistanceMeters)} · 걷기 ${_formatKm(summary.walkingDistanceMeters)}',
+                    textAlign: TextAlign.right,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.body,
+                  ),
                 ),
               ],
             ),
@@ -41,4 +45,8 @@ class DailyRecordList extends StatelessWidget {
       ],
     );
   }
+}
+
+String _formatKm(double meters) {
+  return '${(meters / 1000).toStringAsFixed(2)}km';
 }

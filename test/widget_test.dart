@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   const defaultProfileJson =
-      '{"name":"Puchall User","imagePath":"assets/images/default_profile.png"}';
+      '{"name":"Puchall User","imagePath":"assets/images/default_profile.png","weightKg":70}';
 
   testWidgets('starts onboarding at intro when profile is missing', (
     WidgetTester tester,
@@ -38,13 +38,15 @@ void main() {
 
     expect(find.text('프로필 설정'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextField), 'New User');
+    await tester.enterText(find.byType(TextField).first, 'New User');
+    await tester.enterText(find.byType(TextField).last, '72');
     await tester.tap(find.text('다음'));
     await tester.pumpAndSettle();
 
     expect(find.text('푸쉬업 측정'), findsOneWidget);
     expect(preferences.getString('onboarding_step'), 'push_up_threshold');
     expect(preferences.getString('user_profile'), contains('New User'));
+    expect(preferences.getString('user_profile'), contains('"weightKg":72'));
   });
 
   testWidgets('goes home after splash when profile exists', (
@@ -155,22 +157,18 @@ void main() {
     expect(find.text('Puchall'), findsOneWidget);
     expect(find.text('PUSH UP'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.person_outline));
+    await tester.tap(find.byIcon(Icons.calendar_today_outlined));
     await tester.pumpAndSettle();
 
-    expect(find.text('Puchall User'), findsOneWidget);
-    expect(find.text('데일리'), findsOneWidget);
-    expect(find.byIcon(Icons.settings), findsOneWidget);
-
-    await tester.tap(find.text('데일리'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('운동 기록'), findsOneWidget);
+    expect(find.text('데일리'), findsWidgets);
     expect(find.text('일'), findsOneWidget);
     expect(find.text('월'), findsOneWidget);
 
-    await tester.pageBack();
+    await tester.tap(find.byIcon(Icons.person_outline));
     await tester.pumpAndSettle();
+
+    expect(find.text('Puchall User님'), findsOneWidget);
+    expect(find.byIcon(Icons.settings), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.settings));
     await tester.pumpAndSettle();
@@ -182,5 +180,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('사용자 이름'), findsOneWidget);
+    expect(find.text('체중(kg)'), findsOneWidget);
   });
 }

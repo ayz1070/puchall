@@ -10,20 +10,22 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const exerciseTypes = [
+      ExerciseType.pushUp,
+      ExerciseType.pullUp,
+      ExerciseType.running,
+      ExerciseType.walking,
+    ];
+
     return Column(
       children: [
-        Expanded(
-          child: ExerciseImageButton(
-            exerciseType: ExerciseType.pushUp,
-            onTap: () => context.go(AppRoutes.workoutFor(ExerciseType.pushUp)),
+        for (final exerciseType in exerciseTypes)
+          Expanded(
+            child: ExerciseImageButton(
+              exerciseType: exerciseType,
+              onTap: () => context.go(AppRoutes.workoutFor(exerciseType)),
+            ),
           ),
-        ),
-        Expanded(
-          child: ExerciseImageButton(
-            exerciseType: ExerciseType.pullUp,
-            onTap: () => context.go(AppRoutes.workoutFor(ExerciseType.pullUp)),
-          ),
-        ),
       ],
     );
   }

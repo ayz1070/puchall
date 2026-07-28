@@ -9,16 +9,21 @@ import '../../../workout/domain/entities/exercise_type.dart';
 import '../../../workout/domain/entities/workout_session.dart';
 
 class DailyWorkoutLineChart extends StatelessWidget {
-  const DailyWorkoutLineChart({super.key, required this.sessions, this.onTap});
-
-  static const _visibleDays = 7;
+  const DailyWorkoutLineChart({
+    super.key,
+    required this.sessions,
+    this.visibleMonth,
+    this.onTap,
+  });
 
   final List<WorkoutSession> sessions;
+  final DateTime? visibleMonth;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final points = _buildPoints(sessions);
+    final month = visibleMonth ?? _currentMonth();
+    final points = _buildPoints(sessions, month);
     final hasRecords = points.any(
       (point) => point.pushUpCount > 0 || point.pullUpCount > 0,
     );
@@ -32,8 +37,11 @@ class DailyWorkoutLineChart extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Expanded(
-                  child: Text('데일리', style: AppTextStyles.titleMedium),
+                Expanded(
+                  child: Text(
+                    '${month.year}년 ${month.month}월 데일리',
+                    style: AppTextStyles.titleMedium,
+                  ),
                 ),
                 if (onTap != null)
                   const Icon(
@@ -65,14 +73,17 @@ class DailyWorkoutLineChart extends StatelessWidget {
     );
   }
 
-  List<_DailyWorkoutPoint> _buildPoints(List<WorkoutSession> sessions) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final startDate = today.subtract(const Duration(days: _visibleDays - 1));
+  List<_DailyWorkoutPoint> _buildPoints(
+    List<WorkoutSession> sessions,
+    DateTime month,
+  ) {
+    final firstDay = DateTime(month.year, month.month);
+    final nextMonth = DateTime(month.year, month.month + 1);
+    final daysInMonth = nextMonth.difference(firstDay).inDays;
     final countsByDate = <String, _ExerciseCounts>{};
 
-    for (var i = 0; i < _visibleDays; i++) {
-      final date = startDate.add(Duration(days: i));
+    for (var i = 0; i < daysInMonth; i++) {
+      final date = firstDay.add(Duration(days: i));
       countsByDate[_dateKey(date)] = _ExerciseCounts(date: date);
     }
 
@@ -93,6 +104,9 @@ class DailyWorkoutLineChart extends StatelessWidget {
         case ExerciseType.pullUp:
           counts.pullUpCount += session.count;
           break;
+        case ExerciseType.running:
+        case ExerciseType.walking:
+          break;
       }
     }
 
@@ -105,6 +119,11 @@ class DailyWorkoutLineChart extends StatelessWidget {
           ),
         )
         .toList();
+  }
+
+  DateTime _currentMonth() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month);
   }
 
   String _dateKey(DateTime date) {
@@ -233,16 +252,25 @@ class _DailyWorkoutLineChartPainter extends CustomPainter {
   void _drawXAxisLabels(Canvas canvas, Rect chartRect) {
     final labelStyle = AppTextStyles.body.copyWith(fontSize: 10);
     for (var i = 0; i < points.length; i++) {
-      final x = _xForIndex(chartRect, i);
       final date = points[i].date;
+      if (!_shouldDrawXAxisLabel(date, i)) continue;
+
+      final x = _xForIndex(chartRect, i);
       _drawText(
         canvas,
-        '${date.month}/${date.day}',
+        '${date.day}',
         Offset(x, chartRect.bottom + 12),
         labelStyle,
         TextAlign.center,
       );
     }
+  }
+
+  bool _shouldDrawXAxisLabel(DateTime date, int index) {
+    final lastDay = points.last.date.day;
+    if (lastDay == 31 && date.day == 30) return false;
+
+    return index == 0 || date.day % 5 == 0 || index == points.length - 1;
   }
 
   void _drawLine(
@@ -254,41 +282,26 @@ class _DailyWorkoutLineChartPainter extends CustomPainter {
   ) {
     if (values.isEmpty) return;
 
-    final path = Path();
-    final pointPaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
     final linePaint = Paint()
       ..color = color
       ..strokeWidth = 2.5
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..style = PaintingStyle.stroke;
-
-    for (var i = 0; i < values.length; i++) {
-      final offset = Offset(
-        _xForIndex(chartRect, i),
-        _yForValue(chartRect, values[i], yMax),
-      );
-      if (i == 0) {
-        path.moveTo(offset.dx, offset.dy);
-      } else {
-        path.lineTo(offset.dx, offset.dy);
-      }
-    }
-
-    canvas.drawPath(path, linePaint);
-
-    for (var i = 0; i < values.length; i++) {
-      canvas.drawCircle(
+    final offsets = [
+      for (var i = 0; i < values.length; i++)
         Offset(
           _xForIndex(chartRect, i),
           _yForValue(chartRect, values[i], yMax),
         ),
-        3,
-        pointPaint,
-      );
+    ];
+    final path = Path()..moveTo(offsets.first.dx, offsets.first.dy);
+
+    for (final offset in offsets.skip(1)) {
+      path.lineTo(offset.dx, offset.dy);
     }
+
+    canvas.drawPath(path, linePaint);
   }
 
   double _xForIndex(Rect chartRect, int index) {

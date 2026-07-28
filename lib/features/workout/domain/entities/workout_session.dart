@@ -7,6 +7,8 @@ class WorkoutSession {
     required this.count,
     required this.startedAt,
     required this.endedAt,
+    this.distanceMeters = 0,
+    this.caloriesKcal = 0,
   });
 
   final String id;
@@ -14,8 +16,11 @@ class WorkoutSession {
   final int count;
   final DateTime startedAt;
   final DateTime endedAt;
+  final double distanceMeters;
+  final double caloriesKcal;
 
   Duration get duration => endedAt.difference(startedAt);
+  int get durationSeconds => duration.inSeconds;
 
   String get dateKey {
     final year = startedAt.year.toString().padLeft(4, '0');
@@ -31,6 +36,8 @@ class WorkoutSession {
       'count': count,
       'startedAt': startedAt.toIso8601String(),
       'endedAt': endedAt.toIso8601String(),
+      'distanceMeters': distanceMeters,
+      'caloriesKcal': caloriesKcal,
     };
   }
 
@@ -44,6 +51,8 @@ class WorkoutSession {
       count: (json['count'] as num?)?.toInt() ?? 0,
       startedAt: startedAt,
       endedAt: DateTime.tryParse(json['endedAt'] as String? ?? '') ?? startedAt,
+      distanceMeters: (json['distanceMeters'] as num?)?.toDouble() ?? 0,
+      caloriesKcal: (json['caloriesKcal'] as num?)?.toDouble() ?? 0,
     );
   }
 }

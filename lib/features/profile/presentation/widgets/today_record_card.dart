@@ -17,13 +17,23 @@ class TodayRecordCard extends StatelessWidget {
         children: [
           const Text('오늘 운동 기록', style: AppTextStyles.titleMedium),
           const SizedBox(height: 12),
-          Row(
+          GridView.count(
+            crossAxisCount: 2,
+            childAspectRatio: 2.4,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
             children: [
-              Expanded(
-                child: _RecordValue(label: '푸쉬업', count: summary.pushUpCount),
+              _RecordValue(label: '푸쉬업', value: '${summary.pushUpCount}'),
+              _RecordValue(label: '풀업', value: '${summary.pullUpCount}'),
+              _RecordValue(
+                label: '런닝',
+                value: _formatKm(summary.runningDistanceMeters),
               ),
-              Expanded(
-                child: _RecordValue(label: '풀업', count: summary.pullUpCount),
+              _RecordValue(
+                label: '걷기',
+                value: _formatKm(summary.walkingDistanceMeters),
               ),
             ],
           ),
@@ -34,20 +44,24 @@ class TodayRecordCard extends StatelessWidget {
 }
 
 class _RecordValue extends StatelessWidget {
-  const _RecordValue({required this.label, required this.count});
+  const _RecordValue({required this.label, required this.value});
 
   final String label;
-  final int count;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('$count', style: AppTextStyles.titleLarge),
+        Text(value, style: AppTextStyles.titleLarge),
         const SizedBox(height: 4),
         Text(label, style: AppTextStyles.body),
       ],
     );
   }
+}
+
+String _formatKm(double meters) {
+  return '${(meters / 1000).toStringAsFixed(2)}km';
 }

@@ -11,6 +11,7 @@ class AppRoutes {
   static const onboardingPullUpThreshold = '$onboardingBase/threshold/pull-up';
   static const mainBase = '/main';
   static const home = '$mainBase/home';
+  static const daily = '$mainBase/daily';
   static const profile = '$mainBase/profile';
   static const profileSettings = '/profile/settings';
   static const workoutRecords = '/profile/workout-records';

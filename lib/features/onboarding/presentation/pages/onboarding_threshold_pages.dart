@@ -182,6 +182,8 @@ class _OnboardingThresholdPage extends ConsumerWidget {
     return switch (exerciseType) {
       ExerciseType.pushUp => '푸쉬업',
       ExerciseType.pullUp => '풀업',
+      ExerciseType.running => '런닝',
+      ExerciseType.walking => '도보',
     };
   }
 

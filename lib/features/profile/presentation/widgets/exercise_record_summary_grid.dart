@@ -30,8 +30,10 @@ class ExerciseRecordSummaryGrid extends StatelessWidget {
                   children: [
                     Expanded(
                       child: _Metric(
-                        label: '총 횟수',
-                        value: '${summary.totalCount}',
+                        label: summary.exerciseType.isCardio ? '총 거리' : '총 횟수',
+                        value: summary.exerciseType.isCardio
+                            ? _formatKm(summary.totalDistanceMeters)
+                            : '${summary.totalCount}',
                       ),
                     ),
                     Expanded(
@@ -42,8 +44,10 @@ class ExerciseRecordSummaryGrid extends StatelessWidget {
                     ),
                     Expanded(
                       child: _Metric(
-                        label: '최고',
-                        value: '${summary.bestSessionCount}',
+                        label: summary.exerciseType.isCardio ? '최고 거리' : '최고',
+                        value: summary.exerciseType.isCardio
+                            ? _formatKm(summary.bestSessionDistanceMeters)
+                            : '${summary.bestSessionCount}',
                       ),
                     ),
                   ],
@@ -56,6 +60,10 @@ class ExerciseRecordSummaryGrid extends StatelessWidget {
       ],
     );
   }
+}
+
+String _formatKm(double meters) {
+  return '${(meters / 1000).toStringAsFixed(2)}km';
 }
 
 class _Metric extends StatelessWidget {

@@ -22,6 +22,7 @@ class OnboardingProfilePage extends ConsumerStatefulWidget {
 
 class _OnboardingProfilePageState extends ConsumerState<OnboardingProfilePage> {
   late final TextEditingController _nameController;
+  late final TextEditingController _weightController;
 
   @override
   void initState() {
@@ -29,21 +30,27 @@ class _OnboardingProfilePageState extends ConsumerState<OnboardingProfilePage> {
     _nameController = TextEditingController(
       text: UserProfile.defaultProfile.name,
     );
+    _weightController = TextEditingController(
+      text: UserProfile.defaultProfile.weightKg.toStringAsFixed(0),
+    );
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _weightController.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     final name = _nameController.text.trim();
-    if (name.isEmpty) return;
+    final weightKg = double.tryParse(_weightController.text.trim());
+    if (name.isEmpty || weightKg == null || weightKg <= 0) return;
 
     final profile = UserProfile(
       name: name,
       imagePath: UserProfile.defaultProfile.imagePath,
+      weightKg: weightKg,
     );
     await ref.read(saveUserProfileUseCaseProvider)(profile);
     ref.invalidate(profileProvider);
@@ -69,6 +76,15 @@ class _OnboardingProfilePageState extends ConsumerState<OnboardingProfilePage> {
             AppTextField(
               controller: _nameController,
               label: '사용자 이름',
+              textInputAction: TextInputAction.next,
+            ),
+            const SizedBox(height: 12),
+            AppTextField(
+              controller: _weightController,
+              label: '체중(kg)',
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               textInputAction: TextInputAction.done,
               onSubmitted: (_) => _save(),
             ),

@@ -26,20 +26,16 @@ class ExerciseImageButton extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Image.asset(
-                exerciseType.assetPath,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return const ColoredBox(
-                    color: AppColors.surfaceHigh,
-                    child: Icon(
-                      Icons.fitness_center,
-                      color: AppColors.textSecondary,
-                      size: 44,
-                    ),
-                  );
-                },
-              ),
+              if (exerciseType.assetPath != null)
+                Image.asset(
+                  exerciseType.assetPath!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return _ExerciseFallbackIcon(exerciseType: exerciseType);
+                  },
+                )
+              else
+                _ExerciseFallbackIcon(exerciseType: exerciseType),
               const DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -72,6 +68,20 @@ class ExerciseImageButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ExerciseFallbackIcon extends StatelessWidget {
+  const _ExerciseFallbackIcon({required this.exerciseType});
+
+  final ExerciseType exerciseType;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: AppColors.surfaceHigh,
+      child: Icon(exerciseType.icon, color: AppColors.textSecondary, size: 44),
     );
   }
 }

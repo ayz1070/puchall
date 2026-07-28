@@ -6,6 +6,7 @@ import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_confirm_dialog.dart';
 import '../../../onboarding/presentation/viewmodels/onboarding_view_model.dart';
 import '../../../workout/di/workout_dependencies.dart';
 import '../../../workout/presentation/viewmodels/workout_history_view_model.dart';
@@ -56,19 +57,13 @@ class ProfileSettingsPage extends ConsumerWidget {
     final shouldClear = await showDialog<bool>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('운동 기록 삭제'),
-          content: const Text('저장된 모든 운동 세션 기록을 삭제할까요?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('취소'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('삭제'),
-            ),
-          ],
+        return const AppConfirmDialog(
+          title: '운동 기록 삭제',
+          message: '저장된 모든 운동 세션 기록을 삭제할까요?',
+          cancelLabel: '취소',
+          confirmLabel: '삭제',
+          confirmIcon: Icons.delete_outline,
+          confirmBackgroundColor: AppColors.danger,
         );
       },
     );
@@ -88,19 +83,13 @@ class ProfileSettingsPage extends ConsumerWidget {
     final shouldReset = await showDialog<bool>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('사용자 초기화'),
-          content: const Text('프로필, 운동 기록, 기준치를 모두 삭제하고 처음부터 다시 시작할까요?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('취소'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('초기화'),
-            ),
-          ],
+        return const AppConfirmDialog(
+          title: '사용자 초기화',
+          message: '프로필, 운동 기록, 기준치를 모두 삭제하고 처음부터 다시 시작할까요?',
+          cancelLabel: '취소',
+          confirmLabel: '초기화',
+          confirmIcon: Icons.restart_alt,
+          confirmBackgroundColor: AppColors.danger,
         );
       },
     );

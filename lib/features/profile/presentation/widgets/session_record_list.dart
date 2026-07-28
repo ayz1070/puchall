@@ -45,7 +45,7 @@ class SessionRecordList extends StatelessWidget {
                     ],
                   ),
                 ),
-                Text('${session.count}회', style: AppTextStyles.titleMedium),
+                Text(_sessionValue(session), style: AppTextStyles.titleMedium),
               ],
             ),
           ),
@@ -53,6 +53,14 @@ class SessionRecordList extends StatelessWidget {
         ],
       ],
     );
+  }
+
+  String _sessionValue(WorkoutSession session) {
+    if (session.exerciseType.isCardio) {
+      return '${(session.distanceMeters / 1000).toStringAsFixed(2)}km';
+    }
+
+    return '${session.count}회';
   }
 
   String _formatDuration(Duration duration) {

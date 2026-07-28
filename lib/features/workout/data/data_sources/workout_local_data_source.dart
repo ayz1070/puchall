@@ -55,7 +55,9 @@ class WorkoutLocalDataSource {
   }
 
   Future<void> clearThresholds() async {
-    for (final exerciseType in ExerciseType.values) {
+    for (final exerciseType in ExerciseType.values.where(
+      (type) => type.isStrength,
+    )) {
       await _preferences.remove(_thresholdKey(exerciseType));
     }
   }

@@ -20,6 +20,9 @@ class MainNavigationPage extends StatelessWidget {
         context.go(AppRoutes.home);
         break;
       case 1:
+        context.go(AppRoutes.daily);
+        break;
+      case 2:
         context.go(AppRoutes.profile);
         break;
     }
@@ -27,12 +30,16 @@ class MainNavigationPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = currentIndex == 1 ? '마이페이지' : 'Puchall';
+    final title = switch (currentIndex) {
+      1 => '데일리',
+      2 => '마이페이지',
+      _ => 'Puchall',
+    };
 
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
-        actions: currentIndex == 1
+        actions: currentIndex == 2
             ? [
                 IconButton(
                   onPressed: () => context.push(AppRoutes.profileSettings),
@@ -52,7 +59,7 @@ class MainNavigationPage extends StatelessWidget {
           child: SizedBox(
             height: 64,
             child: BottomNavigationBar(
-              currentIndex: currentIndex.clamp(0, 1),
+              currentIndex: currentIndex.clamp(0, 2),
               onTap: (index) => _goToTab(context, index),
               showSelectedLabels: false,
               showUnselectedLabels: false,
@@ -62,6 +69,12 @@ class MainNavigationPage extends StatelessWidget {
                   activeIcon: Icon(Icons.home),
                   label: '',
                   tooltip: '홈',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.calendar_today_outlined),
+                  activeIcon: Icon(Icons.calendar_today),
+                  label: '',
+                  tooltip: '데일리',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.person_outline),

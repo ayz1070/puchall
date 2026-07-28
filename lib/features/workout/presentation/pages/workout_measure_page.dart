@@ -47,36 +47,46 @@ class WorkoutMeasurePage extends ConsumerWidget {
           Expanded(
             child: SafeArea(
               bottom: false,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
-                child: Column(
-                  children: [
-                    Text(
-                      '${state.count}',
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.titleLarge.copyWith(
-                        fontSize: 82,
-                        height: 1,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight - 48,
+                      ),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${state.count}',
+                              textAlign: TextAlign.center,
+                              style: AppTextStyles.titleLarge.copyWith(
+                                fontSize: 82,
+                                height: 1,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            Text(
+                              _statusLabel(state.status),
+                              style: AppTextStyles.body,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              state.isMeasuring
+                                  ? '휴대폰을 바지 주머니에 넣은 상태로 운동해 주세요.'
+                                  : '시작 후 휴대폰을 바지 주머니에 넣어 주세요. 앱을 나가도 측정은 계속됩니다.',
+                              style: AppTextStyles.body,
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text('${state.count}개', style: AppTextStyles.titleMedium),
-                    const SizedBox(height: 20),
-                    Text(
-                      _statusLabel(state.status),
-                      style: AppTextStyles.body,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      state.isMeasuring
-                          ? '휴대폰을 바지 주머니에 넣은 상태로 운동해 주세요.'
-                          : '시작 후 휴대폰을 바지 주머니에 넣어 주세요. 앱을 나가도 측정은 계속됩니다.',
-                      style: AppTextStyles.body,
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
           ),

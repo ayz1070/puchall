@@ -17,26 +17,32 @@ class ProfileEditPage extends ConsumerStatefulWidget {
 
 class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
   late final TextEditingController _nameController;
+  late final TextEditingController _weightController;
+  bool _didPopulateFields = false;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController();
+    _weightController = TextEditingController();
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _weightController.dispose();
     super.dispose();
   }
 
   Future<void> _save(UserProfile currentProfile) async {
     final name = _nameController.text.trim();
-    if (name.isEmpty) return;
+    final weightKg = double.tryParse(_weightController.text.trim());
+    if (name.isEmpty || weightKg == null || weightKg <= 0) return;
 
     final updatedProfile = UserProfile(
       name: name,
       imagePath: currentProfile.imagePath,
+      weightKg: weightKg,
     );
 
     await ref.read(saveProfileProvider(updatedProfile).future);
@@ -54,8 +60,10 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
       body: SafeArea(
         child: profile.when(
           data: (value) {
-            if (_nameController.text.isEmpty) {
+            if (!_didPopulateFields) {
               _nameController.text = value.name;
+              _weightController.text = value.weightKg.toStringAsFixed(0);
+              _didPopulateFields = true;
             }
 
             return ListView(
@@ -66,7 +74,17 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                 AppTextField(
                   controller: _nameController,
                   label: '사용자 이름',
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 12),
+                AppTextField(
+                  controller: _weightController,
+                  label: '체중(kg)',
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _save(value),
                 ),
                 const SizedBox(height: 16),
                 AppButton(

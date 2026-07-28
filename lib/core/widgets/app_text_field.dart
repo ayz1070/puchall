@@ -8,12 +8,14 @@ class AppTextField extends StatelessWidget {
     required this.controller,
     required this.label,
     this.textInputAction,
+    this.keyboardType,
     this.onSubmitted,
   });
 
   final TextEditingController controller;
   final String label;
   final TextInputAction? textInputAction;
+  final TextInputType? keyboardType;
   final ValueChanged<String>? onSubmitted;
 
   @override
@@ -21,6 +23,7 @@ class AppTextField extends StatelessWidget {
     return TextField(
       controller: controller,
       textInputAction: textInputAction,
+      keyboardType: keyboardType,
       onSubmitted: onSubmitted,
       decoration: InputDecoration(
         labelText: label,
