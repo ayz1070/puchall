@@ -132,11 +132,15 @@ class _WorkoutCalendarState extends State<WorkoutCalendar> {
         case ExerciseType.pushUp:
           records[key] = previous.copyWith(
             pushUpCount: previous.pushUpCount + session.count,
+            pushUpCaloriesKcal:
+                previous.pushUpCaloriesKcal + session.caloriesKcal,
           );
           break;
         case ExerciseType.pullUp:
           records[key] = previous.copyWith(
             pullUpCount: previous.pullUpCount + session.count,
+            pullUpCaloriesKcal:
+                previous.pullUpCaloriesKcal + session.caloriesKcal,
           );
           break;
         case ExerciseType.running:
@@ -316,13 +320,15 @@ class _DayRecordBottomSheet extends StatelessWidget {
             const SizedBox(height: 16),
             _DayRecordDetailRow(
               label: '푸쉬업',
-              value: '${record.pushUpCount}개',
+              value:
+                  '${record.pushUpCount}개 · ${record.pushUpCaloriesKcal.round()} kcal',
               color: const Color(0xFFFACC15),
             ),
             const SizedBox(height: 10),
             _DayRecordDetailRow(
               label: '풀업',
-              value: '${record.pullUpCount}개',
+              value:
+                  '${record.pullUpCount}개 · ${record.pullUpCaloriesKcal.round()} kcal',
               color: AppColors.danger,
             ),
             const SizedBox(height: 10),
@@ -417,6 +423,8 @@ class _DayRecord {
   const _DayRecord({
     this.pushUpCount = 0,
     this.pullUpCount = 0,
+    this.pushUpCaloriesKcal = 0,
+    this.pullUpCaloriesKcal = 0,
     this.runningDistanceMeters = 0,
     this.runningDurationSeconds = 0,
     this.runningCaloriesKcal = 0,
@@ -427,6 +435,8 @@ class _DayRecord {
 
   final int pushUpCount;
   final int pullUpCount;
+  final double pushUpCaloriesKcal;
+  final double pullUpCaloriesKcal;
   final double runningDistanceMeters;
   final int runningDurationSeconds;
   final double runningCaloriesKcal;
@@ -443,6 +453,8 @@ class _DayRecord {
   _DayRecord copyWith({
     int? pushUpCount,
     int? pullUpCount,
+    double? pushUpCaloriesKcal,
+    double? pullUpCaloriesKcal,
     double? runningDistanceMeters,
     int? runningDurationSeconds,
     double? runningCaloriesKcal,
@@ -453,6 +465,8 @@ class _DayRecord {
     return _DayRecord(
       pushUpCount: pushUpCount ?? this.pushUpCount,
       pullUpCount: pullUpCount ?? this.pullUpCount,
+      pushUpCaloriesKcal: pushUpCaloriesKcal ?? this.pushUpCaloriesKcal,
+      pullUpCaloriesKcal: pullUpCaloriesKcal ?? this.pullUpCaloriesKcal,
       runningDistanceMeters:
           runningDistanceMeters ?? this.runningDistanceMeters,
       runningDurationSeconds:

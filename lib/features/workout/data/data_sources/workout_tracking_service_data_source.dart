@@ -22,6 +22,7 @@ class WorkoutTrackingServiceDataSource {
   Future<void> start({
     required ExerciseType exerciseType,
     required WorkoutThreshold threshold,
+    required double weightKg,
   }) {
     return _methodChannel.invokeMethod<void>('startTracking', {
       'exerciseType': exerciseType.slug,
@@ -29,6 +30,7 @@ class WorkoutTrackingServiceDataSource {
       'gyroscopeThreshold': threshold.gyroscopeThreshold,
       'releaseRatio': threshold.releaseRatio,
       'cooldownMs': threshold.cooldownMs,
+      'weightKg': weightKg,
     });
   }
 

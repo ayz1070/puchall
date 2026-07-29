@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
+import '../../../profile/di/profile_dependencies.dart';
 import '../../di/workout_dependencies.dart';
 import '../../domain/entities/exercise_type.dart';
 import '../../domain/entities/workout_session.dart';
 import '../../domain/entities/workout_threshold.dart';
 import '../../domain/entities/workout_tracking_snapshot.dart';
+import '../../domain/services/strength_calorie_calculator.dart';
 import 'workout_history_view_model.dart';
 
 class WorkoutMeasureState {
@@ -93,9 +95,11 @@ class WorkoutMeasureViewModel extends StateNotifier<WorkoutMeasureState> {
       sessionStartedAt: DateTime.now(),
     );
     final trackingService = _ref.read(workoutTrackingServiceDataSourceProvider);
+    final profile = await _ref.read(getUserProfileUseCaseProvider)();
     await trackingService.start(
       exerciseType: state.exerciseType,
       threshold: thresholdConfig,
+      weightKg: profile.weightKg,
     );
   }
 
@@ -163,6 +167,14 @@ class WorkoutMeasureViewModel extends StateNotifier<WorkoutMeasureState> {
 
     final startedAt = snapshot.startedAt ?? state.sessionStartedAt;
     final endedAt = snapshot.endedAt ?? DateTime.now();
+    final duration = endedAt.difference(startedAt ?? endedAt);
+    final profile = await _ref.read(getUserProfileUseCaseProvider)();
+    final caloriesKcal = const StrengthCalorieCalculator().calculate(
+      exerciseType: snapshot.exerciseType,
+      weightKg: profile.weightKg,
+      count: snapshot.count,
+      duration: duration,
+    );
     final saveSession = _ref.read(saveWorkoutSessionUseCaseProvider);
     await saveSession(
       WorkoutSession(
@@ -171,6 +183,8 @@ class WorkoutMeasureViewModel extends StateNotifier<WorkoutMeasureState> {
         count: snapshot.count,
         startedAt: startedAt ?? endedAt,
         endedAt: endedAt,
+        caloriesKcal: caloriesKcal,
+        activeDurationSeconds: duration.inSeconds,
       ),
     );
     _ref.invalidate(workoutHistoryProvider);

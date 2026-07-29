@@ -26,180 +26,191 @@ class CardioMeasurePage extends ConsumerWidget {
       orElse: () => 70.0,
     );
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-              return;
-            }
-            context.go(AppRoutes.home);
-          },
-          icon: const Icon(Icons.arrow_back),
-          tooltip: '뒤로',
+    final canPop = context.canPop();
+
+    return PopScope(
+      canPop: canPop,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        context.go(AppRoutes.home);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+                return;
+              }
+              context.go(AppRoutes.home);
+            },
+            icon: const Icon(Icons.arrow_back),
+            tooltip: '뒤로',
+          ),
+          title: Text(exerciseType.label),
         ),
-        title: Text(exerciseType.label),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SafeArea(
-              bottom: false,
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _formatDuration(state.elapsed),
-                        style: AppTextStyles.titleLarge.copyWith(
-                          fontSize: 54,
-                          height: 1,
+        body: Column(
+          children: [
+            Expanded(
+              child: SafeArea(
+                bottom: false,
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _formatDuration(state.elapsed),
+                          style: AppTextStyles.titleLarge.copyWith(
+                            fontSize: 54,
+                            height: 1,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 22),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _MetricPanel(
-                              label: exerciseType == ExerciseType.walking
-                                  ? '걸음'
-                                  : '거리',
-                              value: exerciseType == ExerciseType.walking
-                                  ? _formatSteps(state.steps)
-                                  : _formatDistance(state.distanceMeters),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _MetricPanel(
-                              label: exerciseType == ExerciseType.running
-                                  ? '페이스'
-                                  : '거리',
-                              value: exerciseType == ExerciseType.running
-                                  ? _formatPace(state.averagePaceSecondsPerKm)
-                                  : _formatDistance(state.distanceMeters),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _MetricPanel(
-                              label: exerciseType == ExerciseType.running
-                                  ? '현재 속도'
-                                  : '케이던스',
-                              value: exerciseType == ExerciseType.running
-                                  ? _formatSpeed(
-                                      state.currentSpeedMetersPerSecond,
-                                    )
-                                  : '${state.cadenceSpm} spm',
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _MetricPanel(
-                              label: '평균 속도',
-                              value: _formatSpeed(
-                                state.averageSpeedMetersPerSecond,
+                        const SizedBox(height: 22),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _MetricPanel(
+                                label: exerciseType == ExerciseType.walking
+                                    ? '걸음'
+                                    : '거리',
+                                value: exerciseType == ExerciseType.walking
+                                    ? _formatSteps(state.steps)
+                                    : _formatDistance(state.distanceMeters),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _MetricPanel(
-                              label: '이동 시간',
-                              value: _formatDuration(state.movingDuration),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _MetricPanel(
+                                label: exerciseType == ExerciseType.running
+                                    ? '페이스'
+                                    : '거리',
+                                value: exerciseType == ExerciseType.running
+                                    ? _formatPace(state.averagePaceSecondsPerKm)
+                                    : _formatDistance(state.distanceMeters),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _MetricPanel(
-                              label: '칼로리',
-                              value: '${state.caloriesKcal.round()} kcal',
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _MetricPanel(
+                                label: exerciseType == ExerciseType.running
+                                    ? '현재 속도'
+                                    : '케이던스',
+                                value: exerciseType == ExerciseType.running
+                                    ? _formatSpeed(
+                                        state.currentSpeedMetersPerSecond,
+                                      )
+                                    : '${state.cadenceSpm} spm',
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                      Text(
-                        state.isAutoPaused
-                            ? '자동 일시정지'
-                            : _statusLabel(state.status),
-                        style: AppTextStyles.body,
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _MetricPanel(
+                                label: '평균 속도',
+                                value: _formatSpeed(
+                                  state.averageSpeedMetersPerSecond,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _MetricPanel(
+                                label: '이동 시간',
+                                value: _formatDuration(state.movingDuration),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _MetricPanel(
+                                label: '칼로리',
+                                value: '${state.caloriesKcal.round()} kcal',
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        Text(
+                          state.isAutoPaused
+                              ? '자동 일시정지'
+                              : _statusLabel(state.status),
+                          style: AppTextStyles.body,
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          SafeArea(
-            top: false,
-            child: SizedBox(
-              height: 64,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: SizedBox.expand(
-                      child: AppButton(
-                        label: state.isMeasuring ? '측정 정지' : '측정 시작',
-                        icon: state.isMeasuring ? Icons.stop : Icons.play_arrow,
-                        onPressed: state.isMeasuring
-                            ? () async {
-                                final session = await notifier.stop();
-                                if (!context.mounted) return;
-                                final message = session == null
-                                    ? '저장할 기록이 없습니다.'
-                                    : '${_formatDistance(session.distanceMeters)} 세션을 저장했습니다.';
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(message)),
-                                );
-                              }
-                            : () => notifier.start(weightKg: weightKg),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: SizedBox.expand(
-                      child: FilledButton(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.textPrimary,
-                          foregroundColor: AppColors.background,
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.zero,
-                          ),
-                          side: BorderSide.none,
-                          textStyle: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        onPressed: notifier.reset,
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.refresh, size: 18),
-                            SizedBox(width: 8),
-                            Text('초기화'),
-                          ],
+            SafeArea(
+              top: false,
+              child: SizedBox(
+                height: 64,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox.expand(
+                        child: AppButton(
+                          label: state.isMeasuring ? '측정 정지' : '측정 시작',
+                          icon: state.isMeasuring
+                              ? Icons.stop
+                              : Icons.play_arrow,
+                          onPressed: state.isMeasuring
+                              ? () async {
+                                  final session = await notifier.stop();
+                                  if (!context.mounted) return;
+                                  final message = session == null
+                                      ? '저장할 기록이 없습니다.'
+                                      : '${_formatDistance(session.distanceMeters)} 세션을 저장했습니다.';
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(message)),
+                                  );
+                                }
+                              : () => notifier.start(weightKg: weightKg),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                    Expanded(
+                      child: SizedBox.expand(
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.textPrimary,
+                            foregroundColor: AppColors.background,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.zero,
+                            ),
+                            side: BorderSide.none,
+                            textStyle: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          onPressed: notifier.reset,
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.refresh, size: 18),
+                              SizedBox(width: 8),
+                              Text('초기화'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -60,7 +60,8 @@ class SessionRecordList extends StatelessWidget {
       return '${(session.distanceMeters / 1000).toStringAsFixed(2)}km';
     }
 
-    return '${session.count}회';
+    if (session.caloriesKcal <= 0) return '${session.count}회';
+    return '${session.count}회 · ${session.caloriesKcal.round()}kcal';
   }
 
   String _formatDuration(Duration duration) {

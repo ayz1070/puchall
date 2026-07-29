@@ -131,6 +131,7 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
                 }
                 if (counter.update(magnitude, latestGyroscopeMagnitude)) {
                     count += 1
+                    caloriesKcal = calculateStrengthCalories()
                     updateNotification()
                     emitState()
                 }
@@ -329,6 +330,8 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
             updateCardioMetrics()
             accumulatedElapsedSeconds = elapsedSeconds()
             resumedAtMillis = 0L
+        } else if (!isCardioExercise()) {
+            caloriesKcal = calculateStrengthCalories()
         }
         endedAtMillis = System.currentTimeMillis()
         status = STATUS_COMPLETED
@@ -533,7 +536,7 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
         return when (exerciseType) {
             "running" -> "${formatKm(distanceMeters)} · ${formatPace(averagePaceSecondsPerKm)} · ${caloriesKcal.toInt()} kcal"
             "walking" -> "${formatNumber(steps)} 걸음 · ${formatDuration(elapsedSeconds())} · ${caloriesKcal.toInt()} kcal"
-            else -> "${count}개"
+            else -> "${count}개 · ${caloriesKcal.toInt()} kcal"
         }
     }
 
@@ -889,6 +892,30 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
         return weightKg * distanceKm * coefficient
     }
 
+    private fun calculateStrengthCalories(): Double {
+        if (weightKg <= 0.0 || count <= 0) return 0.0
+
+        val met = when (exerciseType) {
+            "push-up" -> PUSH_UP_MET
+            "pull-up" -> PULL_UP_MET
+            else -> 0.0
+        }
+        val secondsPerRep = when (exerciseType) {
+            "push-up" -> PUSH_UP_SECONDS_PER_REP
+            "pull-up" -> PULL_UP_SECONDS_PER_REP
+            else -> 0.0
+        }
+        if (met <= 0.0 || secondsPerRep <= 0.0) return 0.0
+
+        val durationSeconds = elapsedSeconds().coerceAtLeast(0L).toDouble()
+        if (durationSeconds <= 0.0) return 0.0
+
+        val estimatedActiveSeconds = count * secondsPerRep * STRENGTH_ACTIVE_TIME_BUFFER
+        val activeSeconds = kotlin.math.min(durationSeconds, estimatedActiveSeconds)
+        val activeMinutes = activeSeconds / 60.0
+        return met * 3.5 * weightKg / 200.0 * activeMinutes
+    }
+
     private fun isCardioExercise(): Boolean {
         return exerciseType == "running" || exerciseType == "walking"
     }
@@ -1071,6 +1098,11 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
         private const val WALKING_SLOW_CALORIE_COEFFICIENT = 0.4
         private const val WALKING_NORMAL_CALORIE_COEFFICIENT = 0.5
         private const val WALKING_FAST_CALORIE_COEFFICIENT = 0.6
+        private const val PUSH_UP_MET = 3.8
+        private const val PULL_UP_MET = 6.0
+        private const val PUSH_UP_SECONDS_PER_REP = 2.5
+        private const val PULL_UP_SECONDS_PER_REP = 4.0
+        private const val STRENGTH_ACTIVE_TIME_BUFFER = 1.3
         private const val DEFAULT_EXERCISE_TYPE = "push-up"
         private const val STATUS_IDLE = "idle"
         private const val STATUS_MEASURING = "measuring"
