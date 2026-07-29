@@ -20,14 +20,26 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "startTracking" -> {
                     val args = call.arguments as? Map<*, *> ?: emptyMap<String, Any?>()
+                    val exerciseType = args["exerciseType"] as? String ?: "push-up"
                     requestNotificationPermissionIfNeeded()
+                    val missingPermissions = missingWorkoutPermissions(exerciseType)
+                    if (missingPermissions.isNotEmpty()) {
+                        requestPermissions(missingPermissions.toTypedArray(), 1202)
+                        result.error(
+                            "PERMISSION_REQUIRED",
+                            "Workout permissions are required.",
+                            missingPermissions,
+                        )
+                        return@setMethodCallHandler
+                    }
                     val intent = WorkoutTrackingService.startIntent(
                         context = this,
-                        exerciseType = args["exerciseType"] as? String ?: "push-up",
+                        exerciseType = exerciseType,
                         accelerationThreshold = (args["accelerationThreshold"] as? Number)?.toDouble() ?: 18.0,
                         gyroscopeThreshold = (args["gyroscopeThreshold"] as? Number)?.toDouble() ?: 1.2,
                         releaseRatio = (args["releaseRatio"] as? Number)?.toDouble() ?: 0.55,
                         cooldownMs = (args["cooldownMs"] as? Number)?.toLong() ?: 600L,
+                        weightKg = (args["weightKg"] as? Number)?.toDouble() ?: 70.0,
                     )
                     startWorkoutService(intent)
                     result.success(null)
@@ -103,5 +115,27 @@ class MainActivity : FlutterActivity() {
             return
         }
         requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1201)
+    }
+
+    private fun missingWorkoutPermissions(exerciseType: String): List<String> {
+        if (exerciseType != "running" && exerciseType != "walking") return emptyList()
+
+        val permissions = mutableListOf<String>()
+        if (
+            checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
+        ) {
+            permissions += Manifest.permission.ACCESS_FINE_LOCATION
+            permissions += Manifest.permission.ACCESS_COARSE_LOCATION
+        }
+
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED
+        ) {
+            permissions += Manifest.permission.ACTIVITY_RECOGNITION
+        }
+
+        return permissions
     }
 }

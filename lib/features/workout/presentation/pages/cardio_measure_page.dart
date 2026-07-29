@@ -8,6 +8,7 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../profile/presentation/viewmodels/profile_view_model.dart';
 import '../../domain/entities/exercise_type.dart';
+import '../../domain/entities/workout_tracking_snapshot.dart';
 import '../viewmodels/cardio_measure_view_model.dart';
 
 class CardioMeasurePage extends ConsumerWidget {
@@ -63,8 +64,60 @@ class CardioMeasurePage extends ConsumerWidget {
                         children: [
                           Expanded(
                             child: _MetricPanel(
-                              label: '거리',
-                              value: _formatDistance(state.distanceMeters),
+                              label: exerciseType == ExerciseType.walking
+                                  ? '걸음'
+                                  : '거리',
+                              value: exerciseType == ExerciseType.walking
+                                  ? _formatSteps(state.steps)
+                                  : _formatDistance(state.distanceMeters),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _MetricPanel(
+                              label: exerciseType == ExerciseType.running
+                                  ? '페이스'
+                                  : '거리',
+                              value: exerciseType == ExerciseType.running
+                                  ? _formatPace(state.averagePaceSecondsPerKm)
+                                  : _formatDistance(state.distanceMeters),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _MetricPanel(
+                              label: exerciseType == ExerciseType.running
+                                  ? '현재 속도'
+                                  : '케이던스',
+                              value: exerciseType == ExerciseType.running
+                                  ? _formatSpeed(
+                                      state.currentSpeedMetersPerSecond,
+                                    )
+                                  : '${state.cadenceSpm} spm',
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _MetricPanel(
+                              label: '평균 속도',
+                              value: _formatSpeed(
+                                state.averageSpeedMetersPerSecond,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _MetricPanel(
+                              label: '이동 시간',
+                              value: _formatDuration(state.movingDuration),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -78,7 +131,9 @@ class CardioMeasurePage extends ConsumerWidget {
                       ),
                       const SizedBox(height: 18),
                       Text(
-                        _statusLabel(state.status),
+                        state.isAutoPaused
+                            ? '자동 일시정지'
+                            : _statusLabel(state.status),
                         style: AppTextStyles.body,
                         textAlign: TextAlign.center,
                       ),
@@ -162,11 +217,45 @@ class CardioMeasurePage extends ConsumerWidget {
     return '${(meters / 1000).toStringAsFixed(2)} km';
   }
 
-  String _statusLabel(CardioMeasureStatus status) {
+  String _formatPace(double secondsPerKm) {
+    if (secondsPerKm <= 0 || secondsPerKm.isInfinite || secondsPerKm.isNaN) {
+      return '--\'--"/km';
+    }
+
+    final minutes = (secondsPerKm ~/ 60).toString();
+    final seconds = (secondsPerKm.round() % 60).toString().padLeft(2, '0');
+    return '$minutes\'$seconds"/km';
+  }
+
+  String _formatSpeed(double metersPerSecond) {
+    final speedKmh = metersPerSecond * 3.6;
+    if (speedKmh <= 0 || speedKmh.isNaN || speedKmh.isInfinite) {
+      return '0.0 km/h';
+    }
+    return '${speedKmh.toStringAsFixed(1)} km/h';
+  }
+
+  String _formatSteps(int steps) {
+    return '${_formatNumber(steps)} 걸음';
+  }
+
+  String _formatNumber(int value) {
+    final text = value.toString();
+    final buffer = StringBuffer();
+    for (var i = 0; i < text.length; i++) {
+      if (i > 0 && (text.length - i) % 3 == 0) buffer.write(',');
+      buffer.write(text[i]);
+    }
+    return buffer.toString();
+  }
+
+  String _statusLabel(WorkoutTrackingStatus status) {
     return switch (status) {
-      CardioMeasureStatus.measuring => '측정 중',
-      CardioMeasureStatus.completed => '측정 완료',
-      CardioMeasureStatus.idle => '측정 대기',
+      WorkoutTrackingStatus.measuring => '측정 중',
+      WorkoutTrackingStatus.paused => '일시정지',
+      WorkoutTrackingStatus.completed => '측정 완료',
+      WorkoutTrackingStatus.failed => '측정할 수 없습니다',
+      WorkoutTrackingStatus.idle => '측정 대기',
     };
   }
 }

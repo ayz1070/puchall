@@ -14,11 +14,13 @@ class DailyWorkoutLineChart extends StatelessWidget {
     required this.sessions,
     this.visibleMonth,
     this.onTap,
+    this.wrapInCard = true,
   });
 
   final List<WorkoutSession> sessions;
   final DateTime? visibleMonth;
   final VoidCallback? onTap;
+  final bool wrapInCard;
 
   @override
   Widget build(BuildContext context) {
@@ -28,48 +30,48 @@ class DailyWorkoutLineChart extends StatelessWidget {
       (point) => point.pushUpCount > 0 || point.pullUpCount > 0,
     );
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: AppCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '${month.year}년 ${month.month}월 데일리',
-                    style: AppTextStyles.titleMedium,
-                  ),
-                ),
-                if (onTap != null)
-                  const Icon(
-                    Icons.chevron_right,
-                    color: AppColors.textSecondary,
-                    size: 22,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (hasRecords) ...[
-              const _ChartLegend(),
-              const SizedBox(height: 14),
-              SizedBox(
-                height: 210,
-                child: CustomPaint(
-                  painter: _DailyWorkoutLineChartPainter(points: points),
-                  child: const SizedBox.expand(),
-                ),
+            Expanded(
+              child: Text(
+                '${month.year}년 ${month.month}월 데일리',
+                style: AppTextStyles.titleMedium,
               ),
-            ] else
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 28),
-                child: Text('아직 운동 기록이 없습니다.', style: AppTextStyles.body),
+            ),
+            if (onTap != null)
+              const Icon(
+                Icons.chevron_right,
+                color: AppColors.textSecondary,
+                size: 22,
               ),
           ],
         ),
-      ),
+        const SizedBox(height: 12),
+        if (hasRecords) ...[
+          const _ChartLegend(),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 210,
+            child: CustomPaint(
+              painter: _DailyWorkoutLineChartPainter(points: points),
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ] else
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 28),
+            child: Text('아직 운동 기록이 없습니다.', style: AppTextStyles.body),
+          ),
+      ],
+    );
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: wrapInCard ? AppCard(child: content) : content,
     );
   }
 

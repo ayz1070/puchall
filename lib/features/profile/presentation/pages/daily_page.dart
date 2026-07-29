@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/widgets/app_card.dart';
 import '../../../workout/presentation/viewmodels/workout_history_view_model.dart';
 import '../widgets/daily_cardio_distance_chart.dart';
 import '../widgets/daily_workout_line_chart.dart';
@@ -35,14 +36,24 @@ class _DailyPageState extends ConsumerState<DailyPage> {
           sessions.when(
             data: (items) => Column(
               children: [
-                DailyWorkoutLineChart(
-                  sessions: items,
-                  visibleMonth: _visibleMonth,
-                ),
-                const SizedBox(height: 16),
-                DailyCardioDistanceChart(
-                  sessions: items,
-                  visibleMonth: _visibleMonth,
+                AppCard(
+                  child: Column(
+                    children: [
+                      DailyWorkoutLineChart(
+                        sessions: items,
+                        visibleMonth: _visibleMonth,
+                        wrapInCard: false,
+                      ),
+                      const SizedBox(height: 20),
+                      const Divider(height: 1),
+                      const SizedBox(height: 20),
+                      DailyCardioDistanceChart(
+                        sessions: items,
+                        visibleMonth: _visibleMonth,
+                        wrapInCard: false,
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 16),
                 WorkoutCalendar(

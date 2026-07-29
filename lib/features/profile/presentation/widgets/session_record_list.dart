@@ -39,7 +39,7 @@ class SessionRecordList extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${dateFormat.format(session.startedAt)} · ${_formatDuration(session.duration)}',
+                        '${dateFormat.format(session.startedAt)} · ${_formatDuration(session.exerciseType.isCardio ? session.activeDuration : session.duration)}',
                         style: AppTextStyles.body,
                       ),
                     ],

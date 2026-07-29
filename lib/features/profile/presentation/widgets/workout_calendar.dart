@@ -94,7 +94,7 @@ class _WorkoutCalendarState extends State<WorkoutCalendar> {
               crossAxisCount: DateTime.daysPerWeek,
               mainAxisSpacing: 4,
               crossAxisSpacing: 4,
-              mainAxisExtent: 56,
+              mainAxisExtent: 92,
             ),
             itemBuilder: (context, index) {
               final dayNumber = index - leadingEmptyDays + 1;
@@ -238,30 +238,40 @@ class _CalendarDayCell extends StatelessWidget {
             ),
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 5),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('${date.day}', style: AppTextStyles.label),
-                const Spacer(),
+                const SizedBox(height: 4),
                 if (record.hasRecord) ...[
-                  if (record.hasStrength) ...[
+                  if (record.pushUpCount > 0)
                     _RecordLine(
                       label: '푸쉬업',
                       value: '${record.pushUpCount}',
                       color: const Color(0xFFFACC15),
                     ),
-                    const SizedBox(height: 3),
+                  if (record.pullUpCount > 0)
                     _RecordLine(
                       label: '풀업',
                       value: '${record.pullUpCount}',
                       color: AppColors.danger,
                     ),
-                  ] else
+                  if (record.runningDistanceMeters > 0)
                     _RecordLine(
-                      label: '유산소',
-                      value: _formatDistance(record.cardioDistanceMeters),
+                      label: '런닝',
+                      value: _formatCalendarDistance(
+                        record.runningDistanceMeters,
+                      ),
                       color: AppColors.brandPrimary,
+                    ),
+                  if (record.walkingDistanceMeters > 0)
+                    _RecordLine(
+                      label: '워킹',
+                      value: _formatCalendarDistance(
+                        record.walkingDistanceMeters,
+                      ),
+                      color: AppColors.textPrimary,
                     ),
                 ],
               ],
@@ -460,6 +470,11 @@ class _DayRecord {
 String _formatDistance(double meters) {
   if (meters < 1000) return '${meters.round()}m';
   return '${(meters / 1000).toStringAsFixed(2)}km';
+}
+
+String _formatCalendarDistance(double meters) {
+  if (meters < 1000) return '${meters.round()}m';
+  return '${(meters / 1000).toStringAsFixed(1)}km';
 }
 
 String _formatDuration(int seconds) {

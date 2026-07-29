@@ -9,6 +9,11 @@ class WorkoutSession {
     required this.endedAt,
     this.distanceMeters = 0,
     this.caloriesKcal = 0,
+    this.steps = 0,
+    this.activeDurationSeconds,
+    this.movingDurationSeconds,
+    this.averageSpeedMetersPerSecond = 0,
+    this.averagePaceSecondsPerKm = 0,
   });
 
   final String id;
@@ -18,9 +23,16 @@ class WorkoutSession {
   final DateTime endedAt;
   final double distanceMeters;
   final double caloriesKcal;
+  final int steps;
+  final int? activeDurationSeconds;
+  final int? movingDurationSeconds;
+  final double averageSpeedMetersPerSecond;
+  final double averagePaceSecondsPerKm;
 
   Duration get duration => endedAt.difference(startedAt);
-  int get durationSeconds => duration.inSeconds;
+  Duration get activeDuration =>
+      Duration(seconds: activeDurationSeconds ?? duration.inSeconds);
+  int get durationSeconds => activeDuration.inSeconds;
 
   String get dateKey {
     final year = startedAt.year.toString().padLeft(4, '0');
@@ -38,6 +50,11 @@ class WorkoutSession {
       'endedAt': endedAt.toIso8601String(),
       'distanceMeters': distanceMeters,
       'caloriesKcal': caloriesKcal,
+      'steps': steps,
+      'activeDurationSeconds': activeDurationSeconds,
+      'movingDurationSeconds': movingDurationSeconds,
+      'averageSpeedMetersPerSecond': averageSpeedMetersPerSecond,
+      'averagePaceSecondsPerKm': averagePaceSecondsPerKm,
     };
   }
 
@@ -53,6 +70,13 @@ class WorkoutSession {
       endedAt: DateTime.tryParse(json['endedAt'] as String? ?? '') ?? startedAt,
       distanceMeters: (json['distanceMeters'] as num?)?.toDouble() ?? 0,
       caloriesKcal: (json['caloriesKcal'] as num?)?.toDouble() ?? 0,
+      steps: (json['steps'] as num?)?.toInt() ?? 0,
+      activeDurationSeconds: (json['activeDurationSeconds'] as num?)?.toInt(),
+      movingDurationSeconds: (json['movingDurationSeconds'] as num?)?.toInt(),
+      averageSpeedMetersPerSecond:
+          (json['averageSpeedMetersPerSecond'] as num?)?.toDouble() ?? 0,
+      averagePaceSecondsPerKm:
+          (json['averagePaceSecondsPerKm'] as num?)?.toDouble() ?? 0,
     );
   }
 }

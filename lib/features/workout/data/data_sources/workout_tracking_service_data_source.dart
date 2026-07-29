@@ -32,6 +32,16 @@ class WorkoutTrackingServiceDataSource {
     });
   }
 
+  Future<void> startCardio({
+    required ExerciseType exerciseType,
+    required double weightKg,
+  }) {
+    return _methodChannel.invokeMethod<void>('startTracking', {
+      'exerciseType': exerciseType.slug,
+      'weightKg': weightKg,
+    });
+  }
+
   Future<WorkoutTrackingSnapshot> stop() async {
     final result = await _methodChannel.invokeMapMethod<dynamic, dynamic>(
       'stopTracking',

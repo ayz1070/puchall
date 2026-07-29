@@ -13,10 +13,12 @@ class DailyCardioDistanceChart extends StatelessWidget {
     super.key,
     required this.sessions,
     required this.visibleMonth,
+    this.wrapInCard = true,
   });
 
   final List<WorkoutSession> sessions;
   final DateTime visibleMonth;
+  final bool wrapInCard;
 
   @override
   Widget build(BuildContext context) {
@@ -25,33 +27,28 @@ class DailyCardioDistanceChart extends StatelessWidget {
       (point) => point.runningKm > 0 || point.walkingKm > 0,
     );
 
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${visibleMonth.year}년 ${visibleMonth.month}월 유산소',
-            style: AppTextStyles.titleMedium,
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (hasRecords) ...[
+          const _CardioLegend(),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 180,
+            child: CustomPaint(
+              painter: _DailyCardioDistanceChartPainter(points: points),
+              child: const SizedBox.expand(),
+            ),
           ),
-          const SizedBox(height: 12),
-          if (hasRecords) ...[
-            const _CardioLegend(),
-            const SizedBox(height: 14),
-            SizedBox(
-              height: 180,
-              child: CustomPaint(
-                painter: _DailyCardioDistanceChartPainter(points: points),
-                child: const SizedBox.expand(),
-              ),
-            ),
-          ] else
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Text('아직 런닝/걷기 기록이 없습니다.', style: AppTextStyles.body),
-            ),
-        ],
-      ),
+        ] else
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Text('아직 런닝/걷기 기록이 없습니다.', style: AppTextStyles.body),
+          ),
+      ],
     );
+
+    return wrapInCard ? AppCard(child: content) : content;
   }
 
   List<_CardioDistancePoint> _buildPoints() {
