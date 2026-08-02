@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/ads/banner_ad_slot.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../workout/presentation/viewmodels/workout_history_view_model.dart';
@@ -55,6 +56,8 @@ class _DailyPageState extends ConsumerState<DailyPage> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 16),
+                const BannerAdSlot(),
                 const SizedBox(height: 16),
                 WorkoutCalendar(
                   sessions: items,

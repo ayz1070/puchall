@@ -6,7 +6,7 @@ import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../domain/entities/exercise_type.dart';
 import '../viewmodels/threshold_setup_view_model.dart';
-import '../widgets/sensor_value_panel.dart';
+import '../widgets/vertical_acceleration_panel.dart';
 
 class ThresholdSetupPage extends ConsumerWidget {
   const ThresholdSetupPage({super.key, required this.exerciseType});
@@ -31,7 +31,8 @@ class ThresholdSetupPage extends ConsumerWidget {
                   const Text('기준치 측정', style: AppTextStyles.titleMedium),
                   const SizedBox(height: 8),
                   Text(
-                    '30초 동안 평소처럼 반복하면 가장 안정적인 구간과 피크를 기준으로 저장합니다.',
+                    '휴대폰을 주머니에 넣고 30초 동안 평소 속도로 반복해 주세요. '
+                    '측정한 동작의 평균 크기를 기준으로 개인 기준치를 만듭니다.',
                     style: AppTextStyles.body,
                   ),
                   const SizedBox(height: 16),
@@ -39,35 +40,28 @@ class ThresholdSetupPage extends ConsumerWidget {
                     '남은 시간 ${state.remainingSeconds.toString().padLeft(2, '0')}초',
                     style: AppTextStyles.titleMedium,
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    '가속도 최대 ${state.maxAccelerationMagnitude.toStringAsFixed(2)}',
-                    style: AppTextStyles.label,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '자이로 최대 ${state.maxGyroscopeMagnitude.toStringAsFixed(2)}',
-                    style: AppTextStyles.label,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '지자기 최대 ${state.maxMagnetometerMagnitude.toStringAsFixed(2)}',
-                    style: AppTextStyles.label,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    state.savedThreshold == null
-                        ? '저장된 기준치 -'
-                        : '저장됨 가속도 ${state.savedThreshold!.accelerationMagnitude.toStringAsFixed(2)} · 자이로 ${state.savedThreshold!.gyroscopeMagnitude.toStringAsFixed(2)} · 지자기 ${state.savedThreshold!.magnetometerMagnitude.toStringAsFixed(2)}',
-                    style: AppTextStyles.body,
-                  ),
+                  const SizedBox(height: 12),
+                  Text(_savedText(state), style: AppTextStyles.body),
+                  if (state.lastResult != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      '이 기준치로 방금 측정 구간을 다시 세어 보니 '
+                      '${state.lastResult!.detectedRepCount}회로 인식됩니다.',
+                      style: AppTextStyles.body,
+                    ),
+                  ],
+                  if (state.failureMessage != null) ...[
+                    const SizedBox(height: 6),
+                    Text(state.failureMessage!, style: AppTextStyles.body),
+                  ],
                 ],
               ),
             ),
             const SizedBox(height: 16),
-            SensorValuePanel(
-              snapshot: state.snapshot,
-              thresholdConfig: state.previewThreshold,
+            VerticalAccelerationPanel(
+              verticalAcceleration: state.verticalAcceleration,
+              amplitudeThreshold: state.displayThreshold,
+              repCount: state.liveRepCount,
             ),
             const SizedBox(height: 16),
             AppButton(
@@ -75,14 +69,17 @@ class ThresholdSetupPage extends ConsumerWidget {
               icon: state.isCapturing ? Icons.save : Icons.play_arrow,
               onPressed: state.isCapturing
                   ? () async {
-                      final savedThreshold = await notifier.stopAndSave();
+                      final result = await notifier.stopAndSave();
                       if (!context.mounted) return;
-                      final message = savedThreshold == null
-                          ? '측정된 센서값이 없어 기준치를 저장하지 않았습니다.'
-                          : '기준치를 저장했습니다. 가속도 ${savedThreshold.accelerationMagnitude.toStringAsFixed(2)}, 자이로 ${savedThreshold.gyroscopeMagnitude.toStringAsFixed(2)}, 지자기 ${savedThreshold.magnetometerMagnitude.toStringAsFixed(2)}';
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text(message)));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            result == null
+                                ? '기준치를 저장하지 못했습니다.'
+                                : '기준치를 저장했습니다. ${result.detectedRepCount}회로 인식했습니다.',
+                          ),
+                        ),
+                      );
                     }
                   : notifier.startCapture,
             ),
@@ -90,5 +87,12 @@ class ThresholdSetupPage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  String _savedText(ThresholdSetupState state) {
+    final saved = state.savedThreshold;
+    if (saved == null) return '저장된 기준치가 없어 기본값으로 측정합니다.';
+    return '저장된 기준치 ±${saved.amplitudeThreshold.toStringAsFixed(2)} m/s² · '
+        '반복 간격 ${saved.minHalfPeriodMs}~${saved.maxHalfPeriodMs}ms';
   }
 }

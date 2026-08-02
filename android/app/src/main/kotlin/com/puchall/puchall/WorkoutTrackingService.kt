@@ -39,15 +39,30 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
     private var count: Int = 0
     private var startedAtMillis: Long = 0L
     private var endedAtMillis: Long = 0L
-    private var latestGyroscopeMagnitude: Double = 0.0
-    private var counter: WorkoutCounter = defaultCounter()
+    private var repDetector: RepDetector = defaultRepDetector()
+    private var verticalAccelerationSource: VerticalAccelerationSource? = null
     private val handler = Handler(Looper.getMainLooper())
     private var accumulatedElapsedSeconds: Long = 0L
     private var resumedAtMillis: Long = 0L
     private var distanceMeters: Double = 0.0
     private var caloriesKcal: Double = 0.0
+
+    /** 워킹 전용 누적 칼로리. 구간마다 그 순간 속도의 계수로 적산한다(세션 평균 소급 적용 금지). */
+    private var walkingBaseCaloriesKcal: Double = 0.0
+
+    /** 상승 고도에 대한 추가 칼로리. 러닝/워킹 공통으로 적산한다. */
+    private var elevationCaloriesKcal: Double = 0.0
+    private var elevationGainMeters: Double = 0.0
+    private var previousAltitudeMeters: Double? = null
+
+    /** 거리 계산용으로 EMA 스무딩한 좌표. GPS 지터로 인한 거리 과대추정을 줄인다. */
+    private var smoothedLatitude: Double? = null
+    private var smoothedLongitude: Double? = null
     private var steps: Int = 0
     private var weightKg: Double = 70.0
+
+    /** 0이면 "입력 안 함"으로 보고 고정 기본 보폭을 쓴다. */
+    private var heightCm: Double = 0.0
     private var previousLocation: Location? = null
     private var stepCounterBaseline: Int? = null
     private var lastStepSampleSteps: Int = 0
@@ -120,22 +135,27 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
     override fun onSensorChanged(event: SensorEvent) {
         if (status != STATUS_MEASURING) return
 
-        val magnitude = magnitude(event.values)
+        // 근력 운동은 VerticalAccelerationSource가 따로 처리한다.
+        // 여기서는 유산소 측정용 센서만 받는다.
         when (event.sensor.type) {
-            Sensor.TYPE_GYROSCOPE -> latestGyroscopeMagnitude = magnitude
             Sensor.TYPE_STEP_COUNTER -> handleStepCounter(event.values.firstOrNull()?.toInt() ?: 0)
             Sensor.TYPE_ACCELEROMETER -> {
                 if (isCardioExercise()) {
-                    handleCardioAcceleration(magnitude)
-                    return
-                }
-                if (counter.update(magnitude, latestGyroscopeMagnitude)) {
-                    count += 1
-                    caloriesKcal = calculateStrengthCalories()
-                    updateNotification()
-                    emitState()
+                    handleCardioAcceleration(magnitude(event.values))
                 }
             }
+        }
+    }
+
+    /** 중력이 제거된 수직 가속도 샘플 하나로 반복을 판정한다. */
+    private fun handleVerticalAcceleration(verticalAcceleration: Double, timestampMs: Long) {
+        if (status != STATUS_MEASURING) return
+
+        if (repDetector.update(verticalAcceleration, timestampMs)) {
+            count += 1
+            caloriesKcal = calculateStrengthCalories()
+            updateNotification()
+            emitState()
         }
     }
 
@@ -148,6 +168,9 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
         val previous = previousLocation
         if (previous == null) {
             previousLocation = location
+            smoothedLatitude = location.latitude
+            smoothedLongitude = location.longitude
+            if (location.hasAltitude()) previousAltitudeMeters = location.altitude
             lastGpsSteps = steps
             lastGpsMillis = location.time
             lastShadowCompensationSteps = steps
@@ -160,20 +183,78 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
             return
         }
 
-        val deltaDistance = previous.distanceTo(location).toDouble()
-        val speedMetersPerSecond = deltaDistance / (deltaMillis / 1000.0)
+        val deltaDistance = smoothedDistanceTo(location)
+        val instantSpeedMetersPerSecond = if (location.hasSpeed() && location.speed >= 0f) {
+            location.speed.toDouble()
+        } else {
+            deltaDistance / (deltaMillis / 1000.0)
+        }
+
+        handleAltitudeSample(location)
+
         if (exerciseType == "walking") {
-            handleWalkingLocation(location, deltaDistance, deltaMillis, speedMetersPerSecond)
+            handleWalkingLocation(location, deltaDistance, instantSpeedMetersPerSecond)
             return
         }
 
-        handleRunningLocation(location, deltaDistance, deltaMillis, speedMetersPerSecond)
+        handleRunningLocation(location, deltaDistance, instantSpeedMetersPerSecond)
+    }
+
+    /**
+     * 원시 좌표 대신 EMA로 스무딩한 좌표 사이의 거리를 계산한다.
+     * 정지 상태에서도 원시 좌표는 몇 미터씩 흔들리는데, 그 흔들림이 방향과 무관하게
+     * 전부 양수로 누적 거리에 더해지는 구조적 과대추정이 있다. 스무딩하면 이 편향이 줄어든다.
+     */
+    private fun smoothedDistanceTo(location: Location): Double {
+        val previousLat = smoothedLatitude
+        val previousLng = smoothedLongitude
+
+        val newLat: Double
+        val newLng: Double
+        if (previousLat == null || previousLng == null) {
+            newLat = location.latitude
+            newLng = location.longitude
+        } else {
+            newLat = previousLat + POSITION_EMA_ALPHA * (location.latitude - previousLat)
+            newLng = previousLng + POSITION_EMA_ALPHA * (location.longitude - previousLng)
+        }
+
+        val distance = if (previousLat == null || previousLng == null) {
+            0.0
+        } else {
+            val results = FloatArray(1)
+            Location.distanceBetween(previousLat, previousLng, newLat, newLng, results)
+            results[0].toDouble()
+        }
+
+        smoothedLatitude = newLat
+        smoothedLongitude = newLng
+        return distance
+    }
+
+    /**
+     * GPS 고도로 누적 상승고도를 추정해 칼로리에 오르막 보정치를 더한다.
+     * GPS 고도는 수평 위치보다 오차가 크므로, 노이즈 수준의 미세 변화(1m 미만)는 무시하고
+     * 한 번에 비정상적으로 큰 변화(15m 초과)도 튐으로 보고 버린다.
+     */
+    private fun handleAltitudeSample(location: Location) {
+        if (!location.hasAltitude()) return
+
+        val previousAltitude = previousAltitudeMeters
+        previousAltitudeMeters = location.altitude
+        if (previousAltitude == null) return
+
+        val delta = location.altitude - previousAltitude
+        if (delta < MIN_ELEVATION_GAIN_DELTA_METERS || delta > MAX_ELEVATION_GAIN_JUMP_METERS) return
+
+        elevationGainMeters += delta
+        elevationCaloriesKcal += weightKg * delta * ELEVATION_GAIN_CALORIES_PER_KG_METER
+        refreshCardioCalories()
     }
 
     private fun handleRunningLocation(
         location: Location,
         deltaDistance: Double,
-        deltaMillis: Long,
         speedMetersPerSecond: Double,
     ) {
         if (
@@ -188,13 +269,13 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
         updateStrideFromGps(deltaDistance, location.time)
         lastGpsMillis = location.time
         lastShadowCompensationSteps = steps
-        updateSpeed(deltaDistance, deltaMillis)
+        updateSpeed(speedMetersPerSecond, SPEED_EMA_ALPHA)
         updateCardioMetrics()
         if (!autoPaused && motionState != MOTION_VEHICLE) {
             distanceMeters += deltaDistance
         }
-        updateAverages(elapsedSeconds())
-        caloriesKcal = calculateCalories(distanceMeters)
+        updateAverages()
+        refreshCardioCalories()
         updateNotification()
         emitState()
     }
@@ -202,7 +283,6 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
     private fun handleWalkingLocation(
         location: Location,
         deltaDistance: Double,
-        deltaMillis: Long,
         speedMetersPerSecond: Double,
     ) {
         val stepDelta = (steps - lastGpsSteps).coerceAtLeast(0)
@@ -218,13 +298,14 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
 
         previousLocation = location
         lastGpsMillis = location.time
-        updateSpeed(deltaDistance, deltaMillis, WALKING_SPEED_EMA_ALPHA)
+        updateSpeed(speedMetersPerSecond, WALKING_SPEED_EMA_ALPHA)
 
         if (validWalkingMove) {
             updateStrideFromGps(deltaDistance, location.time)
             if (!autoPaused && motionState != MOTION_VEHICLE) {
                 distanceMeters += deltaDistance
                 lastWalkingDistanceSteps = steps
+                accumulateWalkingCalories(deltaDistance)
             }
         } else {
             lastGpsSteps = steps
@@ -244,22 +325,40 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
 
     private fun startTracking(intent: Intent) {
         exerciseType = intent.getStringExtra(EXTRA_EXERCISE_TYPE) ?: DEFAULT_EXERCISE_TYPE
-        val accelerationThreshold = intent.getDoubleExtra(EXTRA_ACCELERATION_THRESHOLD, 18.0)
-        val gyroscopeThreshold = intent.getDoubleExtra(EXTRA_GYROSCOPE_THRESHOLD, 1.2)
-        val releaseRatio = intent.getDoubleExtra(EXTRA_RELEASE_RATIO, 0.55)
-        val cooldownMs = intent.getLongExtra(EXTRA_COOLDOWN_MS, 600L)
         weightKg = intent.getDoubleExtra(EXTRA_WEIGHT_KG, 70.0)
+        heightCm = intent.getDoubleExtra(EXTRA_HEIGHT_CM, 0.0)
 
-        counter = WorkoutCounter(
-            threshold = accelerationThreshold,
-            gyroscopeThreshold = gyroscopeThreshold,
-            releaseRatio = releaseRatio,
-            cooldownMs = cooldownMs,
+        repDetector = RepDetector(
+            RepDetectorConfig(
+                amplitudeThreshold = intent.getDoubleExtra(
+                    EXTRA_AMPLITUDE_THRESHOLD,
+                    DEFAULT_AMPLITUDE_THRESHOLD,
+                ),
+                minHalfPeriodMs = intent.getLongExtra(
+                    EXTRA_MIN_HALF_PERIOD_MS,
+                    DEFAULT_MIN_HALF_PERIOD_MS,
+                ),
+                maxHalfPeriodMs = intent.getLongExtra(
+                    EXTRA_MAX_HALF_PERIOD_MS,
+                    DEFAULT_MAX_HALF_PERIOD_MS,
+                ),
+                cooldownMs = intent.getLongExtra(EXTRA_COOLDOWN_MS, DEFAULT_COOLDOWN_MS),
+                lowPassCutoffHz = intent.getDoubleExtra(
+                    EXTRA_LOW_PASS_CUTOFF_HZ,
+                    RepDetectorConfig.DEFAULT_LOW_PASS_CUTOFF_HZ,
+                ),
+            ),
         )
         count = 0
         accumulatedElapsedSeconds = 0L
         distanceMeters = 0.0
         caloriesKcal = 0.0
+        walkingBaseCaloriesKcal = 0.0
+        elevationCaloriesKcal = 0.0
+        elevationGainMeters = 0.0
+        previousAltitudeMeters = null
+        smoothedLatitude = null
+        smoothedLongitude = null
         steps = 0
         stepCounterBaseline = null
         lastStepSampleSteps = 0
@@ -286,7 +385,6 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
         movingDurationMillis = 0L
         movingDurationSeconds = 0L
         previousLocation = null
-        latestGyroscopeMagnitude = 0.0
         startedAtMillis = System.currentTimeMillis()
         resumedAtMillis = startedAtMillis
         lastCardioMetricsMillis = startedAtMillis
@@ -396,6 +494,12 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
         accumulatedElapsedSeconds = 0L
         distanceMeters = 0.0
         caloriesKcal = 0.0
+        walkingBaseCaloriesKcal = 0.0
+        elevationCaloriesKcal = 0.0
+        elevationGainMeters = 0.0
+        previousAltitudeMeters = null
+        smoothedLatitude = null
+        smoothedLongitude = null
         steps = 0
         stepCounterBaseline = null
         lastStepSampleSteps = 0
@@ -431,18 +535,18 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
             startedAtMillis = System.currentTimeMillis()
             resumedAtMillis = startedAtMillis
         }
-        counter.reset()
+        repDetector.reset()
         updateNotification()
         emitState()
     }
 
     private fun registerSensors() {
-        sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.also {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
+        verticalAccelerationSource?.stop()
+        val source = VerticalAccelerationSource(sensorManager) { verticalAcceleration, timestampMs ->
+            handleVerticalAcceleration(verticalAcceleration, timestampMs)
         }
-        sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)?.also {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
-        }
+        source.start()
+        verticalAccelerationSource = source
     }
 
     private fun registerCardioSensors() {
@@ -456,6 +560,8 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
 
     private fun unregisterSensors() {
         sensorManager.unregisterListener(this)
+        verticalAccelerationSource?.stop()
+        verticalAccelerationSource = null
     }
 
     private fun updateNotification() {
@@ -589,7 +695,6 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
 
     private fun updateCardioMetrics() {
         updateMovingDuration()
-        val elapsed = elapsedSeconds()
         if (exerciseType == "walking") {
             updateWalkingSpeed()
         }
@@ -598,8 +703,12 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
             compensateWalkingStepDistance()
         }
         compensateGpsShadowDistance()
-        updateAverages(elapsed)
-        caloriesKcal = calculateCalories(distanceMeters)
+        updateAverages()
+        // 워킹은 거리가 늘어난 그 순간(accumulateWalkingCalories)에 이미 적산되므로 여기서 다시 계산하지 않는다.
+        // 세션 전체 평균속도를 전체 거리에 소급 적용하던 예전 방식으로 되돌아가지 않도록 주의.
+        if (exerciseType != "walking") {
+            refreshCardioCalories()
+        }
     }
 
     private fun handleStepCounter(rawSteps: Int) {
@@ -668,6 +777,7 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
 
         distanceMeters += estimatedDistance
         lastWalkingDistanceSteps = steps
+        accumulateWalkingCalories(estimatedDistance)
     }
 
     private fun compensateGpsShadowDistance() {
@@ -701,17 +811,19 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
         }
     }
 
-    private fun updateSpeed(
-        deltaDistance: Double,
-        deltaMillis: Long,
-        alpha: Double = SPEED_EMA_ALPHA,
-    ) {
-        currentSpeedMetersPerSecond = deltaDistance / (deltaMillis / 1000.0)
+    /**
+     * GPS 칩이 도플러 편이로 직접 계산한 속도(Location.speed)를 우선 쓴다.
+     * 위치 두 점을 미분해서 구하는 속도보다 노이즈가 훨씬 적다 — 특히 업데이트 간격이
+     * 1초 안팎으로 짧은 러닝에서는 위치 오차가 시간으로 나뉘며 크게 증폭되기 때문이다.
+     * 기기가 유효한 속도를 못 주면 위치 차분으로 계산한 값으로 대체한다.
+     */
+    private fun updateSpeed(instantSpeedMetersPerSecond: Double, alpha: Double = SPEED_EMA_ALPHA) {
+        currentSpeedMetersPerSecond = instantSpeedMetersPerSecond
         smoothedSpeedMetersPerSecond =
             if (smoothedSpeedMetersPerSecond <= 0.0) {
-                currentSpeedMetersPerSecond
+                instantSpeedMetersPerSecond
             } else {
-                alpha * currentSpeedMetersPerSecond +
+                alpha * instantSpeedMetersPerSecond +
                     (1 - alpha) * smoothedSpeedMetersPerSecond
             }
     }
@@ -742,17 +854,19 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
         movingDurationSeconds = movingDurationMillis / 1000L
     }
 
-    private fun updateAverages(elapsed: Long) {
+    private fun updateAverages() {
         averageSpeedMetersPerSecond = if (movingDurationSeconds <= 0L) {
             0.0
         } else {
             distanceMeters / movingDurationSeconds
         }
-        val paceSeconds = if (exerciseType == "walking") movingDurationSeconds else elapsed
-        averagePaceSecondsPerKm = if (distanceMeters <= 0.0) {
+        // 평균 속도와 같은 시간 기준(이동 시간)을 써야 두 값이 서로 앞뒤가 맞는다.
+        // 예전에는 러닝만 전체 경과시간(신호대기 등 정지 구간 포함)을 써서 평균 속도로
+        // 역산한 페이스와 표시되는 페이스가 서로 맞지 않았다.
+        averagePaceSecondsPerKm = if (distanceMeters <= 0.0 || movingDurationSeconds <= 0L) {
             0.0
         } else {
-            paceSeconds / (distanceMeters / 1000.0)
+            movingDurationSeconds / (distanceMeters / 1000.0)
         }
     }
 
@@ -878,18 +992,43 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
         return !location.hasAccuracy() || location.accuracy <= MAX_LOCATION_ACCURACY_METERS
     }
 
-    private fun calculateCalories(distanceMeters: Double): Double {
+    /** 러닝은 페이스에 거의 무관하게 거리당 에너지 소비가 일정하다는 근사를 그대로 쓴다. */
+    private fun calculateRunningCalories(distanceMeters: Double): Double {
         if (weightKg <= 0.0 || distanceMeters <= 0.0) return 0.0
-        val distanceKm = distanceMeters / 1000.0
-        if (exerciseType != "walking") return weightKg * distanceKm
+        return weightKg * (distanceMeters / 1000.0)
+    }
 
-        val speedKmh = averageSpeedMetersPerSecond * 3.6
+    /**
+     * 워킹은 속도에 따라 거리당 에너지 소비 계수가 달라지므로, 거리가 늘어난 바로 그 구간의
+     * 순간 속도로 계수를 정해 그 구간 거리에만 곱해 누적한다.
+     *
+     * 예전에는 "세션 전체 평균속도로 정한 계수"를 "지금까지의 전체 누적거리"에 매번 다시
+     * 곱했다. 페이스가 바뀌면(대부분의 워킹이 그렇다) 이미 걸어온 거리 전체의 칼로리가
+     * 새 계수로 소급 재계산되어, 페이스 변화 패턴과 무관하게 총 거리·총 시간만 같으면
+     * 같은 칼로리가 나오는 부정확한 결과를 냈다.
+     */
+    private fun accumulateWalkingCalories(deltaDistanceMeters: Double) {
+        if (weightKg <= 0.0 || deltaDistanceMeters <= 0.0) return
+
+        val deltaKm = deltaDistanceMeters / 1000.0
+        val speedKmh = smoothedSpeedMetersPerSecond * 3.6
         val coefficient = when {
             speedKmh < WALKING_CALORIE_NORMAL_SPEED_KMH -> WALKING_SLOW_CALORIE_COEFFICIENT
             speedKmh < WALKING_CALORIE_FAST_SPEED_KMH -> WALKING_NORMAL_CALORIE_COEFFICIENT
             else -> WALKING_FAST_CALORIE_COEFFICIENT
         }
-        return weightKg * distanceKm * coefficient
+        walkingBaseCaloriesKcal += weightKg * deltaKm * coefficient
+        refreshCardioCalories()
+    }
+
+    /** 기본 칼로리(러닝은 재계산, 워킹은 누적값)에 고도 보정치를 더해 최종 표시값을 만든다. */
+    private fun refreshCardioCalories() {
+        val base = if (exerciseType == "walking") {
+            walkingBaseCaloriesKcal
+        } else {
+            calculateRunningCalories(distanceMeters)
+        }
+        caloriesKcal = base + elevationCaloriesKcal
     }
 
     private fun calculateStrengthCalories(): Double {
@@ -924,7 +1063,21 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
         return exerciseType == "running" || exerciseType == "walking"
     }
 
+    /**
+     * GPS로 보폭이 학습되기 전까지 쓸 출발값. 키를 입력했다면 키 기반으로 추정하고,
+     * 아니면 인구 평균에 해당하는 고정값을 쓴다. 키 기반 추정은 GPS 학습이 시작되면
+     * 곧바로 사용자 실측값으로 대체되므로, 정밀할 필요 없이 방향만 맞으면 된다.
+     */
     private fun defaultStrideMeters(): Double {
+        if (heightCm > 0.0) {
+            val factor = if (exerciseType == "walking") {
+                WALKING_STRIDE_HEIGHT_FACTOR
+            } else {
+                RUNNING_STRIDE_HEIGHT_FACTOR
+            }
+            val estimate = heightCm * factor / 100.0
+            return estimate.coerceIn(minStrideMeters(), maxStrideMeters())
+        }
         return if (exerciseType == "walking") DEFAULT_WALKING_STRIDE_METERS else DEFAULT_RUNNING_STRIDE_METERS
     }
 
@@ -1014,11 +1167,24 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
         const val ACTION_RESET = "com.puchall.puchall.workout.RESET"
 
         const val EXTRA_EXERCISE_TYPE = "exerciseType"
-        const val EXTRA_ACCELERATION_THRESHOLD = "accelerationThreshold"
-        const val EXTRA_GYROSCOPE_THRESHOLD = "gyroscopeThreshold"
-        const val EXTRA_RELEASE_RATIO = "releaseRatio"
+        const val EXTRA_AMPLITUDE_THRESHOLD = "amplitudeThreshold"
+        const val EXTRA_MIN_HALF_PERIOD_MS = "minHalfPeriodMs"
+        const val EXTRA_MAX_HALF_PERIOD_MS = "maxHalfPeriodMs"
+        const val EXTRA_LOW_PASS_CUTOFF_HZ = "lowPassCutoffHz"
         const val EXTRA_COOLDOWN_MS = "cooldownMs"
         const val EXTRA_WEIGHT_KG = "weightKg"
+        const val EXTRA_HEIGHT_CM = "heightCm"
+
+        // "초기 걷기 보폭 ≈ 키 x 0.40~0.43" (docs/walking_guide.md) 의 중간값.
+        private const val WALKING_STRIDE_HEIGHT_FACTOR = 0.415
+
+        // 조깅 페이스 기준 근사치. 워킹보다 보폭이 뚜렷이 길다는 방향만 반영한다.
+        private const val RUNNING_STRIDE_HEIGHT_FACTOR = 0.57
+
+        private const val DEFAULT_AMPLITUDE_THRESHOLD = 0.8
+        private const val DEFAULT_MIN_HALF_PERIOD_MS = 250L
+        private const val DEFAULT_MAX_HALF_PERIOD_MS = 2500L
+        private const val DEFAULT_COOLDOWN_MS = 800L
 
         private const val CHANNEL_ID = "workout_tracking"
         private const val NOTIFICATION_ID = 1201
@@ -1062,8 +1228,24 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
         private const val WALKING_MIN_LOCATION_DELTA_MS = 2_000L
         private const val MIN_LOCATION_DISTANCE_METERS = 2.0
         private const val WALKING_MIN_LOCATION_DISTANCE_METERS = 1.0
-        private const val MAX_LOCATION_ACCURACY_METERS = 30.0f
+
+        // 30m -> 20m. 스마트폰 GPS는 하늘이 트인 곳에서 보통 3~8m, 도심에서도 20m 안팎이라
+        // 30m까지 허용하면 이미 상당히 나쁜 픽스도 거리 계산에 들어간다.
+        private const val MAX_LOCATION_ACCURACY_METERS = 20.0f
         private const val MAX_RUNNING_SPEED_METERS_PER_SECOND = 8.0
+
+        /** 거리 계산용 좌표 스무딩 계수. 기존 속도 EMA(0.2~0.35)와 비슷한 크기로 맞췄다. */
+        private const val POSITION_EMA_ALPHA = 0.3
+
+        // GPS 고도는 수평 위치보다 오차가 크다. 노이즈 수준의 미세 변화는 무시하고,
+        // 한 번에 비정상적으로 큰 변화는 튐으로 보고 버린다.
+        private const val MIN_ELEVATION_GAIN_DELTA_METERS = 1.0
+        private const val MAX_ELEVATION_GAIN_JUMP_METERS = 15.0
+
+        // 체중(kg) x 상승고도(m) x 계수. 상승에 드는 위치에너지(m*g*h)를 등반 시
+        // 기계효율 약 20%로 나눠 대략적인 대사 비용으로 환산한 값이다. 정밀한 값이 아니라
+        // "오르막이 평지보다 더 든다"는 방향을 반영하기 위한 근사치다.
+        private const val ELEVATION_GAIN_CALORIES_PER_KG_METER = 0.01
         private const val WALKING_MAX_LOCATION_JUMP_METERS = 60.0
         private const val WALKING_SPEED_GPS_FRESH_MS = 10_000L
         private const val STATIONARY_MAX_SPEED_KMH = 1.0
@@ -1114,20 +1296,24 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
         fun startIntent(
             context: Context,
             exerciseType: String,
-            accelerationThreshold: Double,
-            gyroscopeThreshold: Double,
-            releaseRatio: Double,
+            amplitudeThreshold: Double,
+            minHalfPeriodMs: Long,
+            maxHalfPeriodMs: Long,
             cooldownMs: Long,
+            lowPassCutoffHz: Double,
             weightKg: Double,
+            heightCm: Double,
         ): Intent {
             return Intent(context, WorkoutTrackingService::class.java)
                 .setAction(ACTION_START)
                 .putExtra(EXTRA_EXERCISE_TYPE, exerciseType)
-                .putExtra(EXTRA_ACCELERATION_THRESHOLD, accelerationThreshold)
-                .putExtra(EXTRA_GYROSCOPE_THRESHOLD, gyroscopeThreshold)
-                .putExtra(EXTRA_RELEASE_RATIO, releaseRatio)
+                .putExtra(EXTRA_AMPLITUDE_THRESHOLD, amplitudeThreshold)
+                .putExtra(EXTRA_MIN_HALF_PERIOD_MS, minHalfPeriodMs)
+                .putExtra(EXTRA_MAX_HALF_PERIOD_MS, maxHalfPeriodMs)
                 .putExtra(EXTRA_COOLDOWN_MS, cooldownMs)
+                .putExtra(EXTRA_LOW_PASS_CUTOFF_HZ, lowPassCutoffHz)
                 .putExtra(EXTRA_WEIGHT_KG, weightKg)
+                .putExtra(EXTRA_HEIGHT_CM, heightCm)
         }
 
         fun commandIntent(context: Context, action: String): Intent {
@@ -1188,12 +1374,14 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
             return activeService?.stopFromChannel() ?: currentState()
         }
 
-        private fun defaultCounter(): WorkoutCounter {
-            return WorkoutCounter(
-                threshold = 18.0,
-                gyroscopeThreshold = 1.2,
-                releaseRatio = 0.55,
-                cooldownMs = 600L,
+        private fun defaultRepDetector(): RepDetector {
+            return RepDetector(
+                RepDetectorConfig(
+                    amplitudeThreshold = DEFAULT_AMPLITUDE_THRESHOLD,
+                    minHalfPeriodMs = DEFAULT_MIN_HALF_PERIOD_MS,
+                    maxHalfPeriodMs = DEFAULT_MAX_HALF_PERIOD_MS,
+                    cooldownMs = DEFAULT_COOLDOWN_MS,
+                ),
             )
         }
 

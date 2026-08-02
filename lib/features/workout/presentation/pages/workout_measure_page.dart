@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/ads/banner_ad_slot.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -99,6 +100,9 @@ class WorkoutMeasurePage extends ConsumerWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 8),
+            const BannerAdSlot(horizontalPadding: 16),
+            const SizedBox(height: 20),
             SafeArea(
               top: false,
               child: SizedBox(

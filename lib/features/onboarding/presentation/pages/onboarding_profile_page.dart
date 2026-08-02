@@ -23,6 +23,7 @@ class OnboardingProfilePage extends ConsumerStatefulWidget {
 class _OnboardingProfilePageState extends ConsumerState<OnboardingProfilePage> {
   late final TextEditingController _nameController;
   late final TextEditingController _weightController;
+  late final TextEditingController _heightController;
 
   @override
   void initState() {
@@ -33,12 +34,14 @@ class _OnboardingProfilePageState extends ConsumerState<OnboardingProfilePage> {
     _weightController = TextEditingController(
       text: UserProfile.defaultProfile.weightKg.toStringAsFixed(0),
     );
+    _heightController = TextEditingController();
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _weightController.dispose();
+    _heightController.dispose();
     super.dispose();
   }
 
@@ -47,10 +50,13 @@ class _OnboardingProfilePageState extends ConsumerState<OnboardingProfilePage> {
     final weightKg = double.tryParse(_weightController.text.trim());
     if (name.isEmpty || weightKg == null || weightKg <= 0) return;
 
+    final heightCm = double.tryParse(_heightController.text.trim());
+
     final profile = UserProfile(
       name: name,
       imagePath: UserProfile.defaultProfile.imagePath,
       weightKg: weightKg,
+      heightCm: heightCm != null && heightCm > 0 ? heightCm : 0,
     );
     await ref.read(saveUserProfileUseCaseProvider)(profile);
     ref.invalidate(profileProvider);
@@ -82,6 +88,15 @@ class _OnboardingProfilePageState extends ConsumerState<OnboardingProfilePage> {
             AppTextField(
               controller: _weightController,
               label: '체중(kg)',
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              textInputAction: TextInputAction.next,
+            ),
+            const SizedBox(height: 12),
+            AppTextField(
+              controller: _heightController,
+              label: '키(cm) · 선택',
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),

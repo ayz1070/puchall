@@ -17,7 +17,6 @@ class WorkoutMeasureState {
     required this.exerciseType,
     this.count = 0,
     this.status = WorkoutTrackingStatus.idle,
-    this.threshold = WorkoutThreshold.defaultAccelerationMagnitude,
     this.thresholdConfig,
     this.sessionStartedAt,
   });
@@ -25,16 +24,21 @@ class WorkoutMeasureState {
   final ExerciseType exerciseType;
   final int count;
   final WorkoutTrackingStatus status;
-  final double threshold;
+
+  /// 저장된 사용자 기준치. 없으면 운동 종류별 기본값으로 측정한다.
   final WorkoutThreshold? thresholdConfig;
   final DateTime? sessionStartedAt;
 
   bool get isMeasuring => status == WorkoutTrackingStatus.measuring;
 
+  bool get hasCalibratedThreshold => thresholdConfig != null;
+
+  WorkoutThreshold get effectiveThreshold =>
+      thresholdConfig ?? WorkoutThreshold.defaultsFor(exerciseType);
+
   WorkoutMeasureState copyWith({
     int? count,
     WorkoutTrackingStatus? status,
-    double? threshold,
     WorkoutThreshold? thresholdConfig,
     DateTime? sessionStartedAt,
     bool clearSessionStartedAt = false,
@@ -43,7 +47,6 @@ class WorkoutMeasureState {
       exerciseType: exerciseType,
       count: count ?? this.count,
       status: status ?? this.status,
-      threshold: threshold ?? this.threshold,
       thresholdConfig: thresholdConfig ?? this.thresholdConfig,
       sessionStartedAt: clearSessionStartedAt
           ? null
@@ -72,26 +75,17 @@ class WorkoutMeasureViewModel extends StateNotifier<WorkoutMeasureState> {
   Future<void> _loadThreshold(ExerciseType exerciseType) async {
     final getThreshold = _ref.read(getWorkoutThresholdUseCaseProvider);
     final threshold = await getThreshold(exerciseType);
-    state = state.copyWith(
-      threshold: threshold?.accelerationThreshold ?? state.threshold,
-      thresholdConfig: threshold,
-    );
+    if (threshold == null) return;
+    state = state.copyWith(thresholdConfig: threshold);
   }
 
   Future<void> start() async {
     if (state.isMeasuring) return;
 
-    final thresholdConfig =
-        state.thresholdConfig ??
-        WorkoutThreshold.normalized(
-          exerciseType: state.exerciseType,
-          accelerationMagnitude: state.threshold,
-        );
+    final thresholdConfig = state.effectiveThreshold;
     state = state.copyWith(
       count: 0,
       status: WorkoutTrackingStatus.measuring,
-      threshold: thresholdConfig.accelerationThreshold,
-      thresholdConfig: thresholdConfig,
       sessionStartedAt: DateTime.now(),
     );
     final trackingService = _ref.read(workoutTrackingServiceDataSourceProvider);

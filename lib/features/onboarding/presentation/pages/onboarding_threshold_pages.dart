@@ -61,15 +61,21 @@ class _OnboardingThresholdPage extends ConsumerWidget {
     final canGoNext = !state.isCapturing && state.savedThreshold != null;
 
     ref.listen(thresholdSetupProvider(exerciseType), (previous, next) async {
-      if (previous?.isCapturing == true &&
-          !next.isCapturing &&
-          next.savedThreshold != null) {
-        await SystemSound.play(SystemSoundType.alert);
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('측정이 완료되었습니다.')));
-      }
+      if (previous?.isCapturing != true || next.isCapturing) return;
+
+      await SystemSound.play(SystemSoundType.alert);
+      if (!context.mounted) return;
+
+      final result = next.lastResult;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result == null
+                ? (next.failureMessage ?? '기준치를 저장하지 못했습니다.')
+                : '측정이 완료되었습니다. ${result.detectedRepCount}회로 인식했습니다.',
+          ),
+        ),
+      );
     });
 
     return Scaffold(
@@ -121,7 +127,11 @@ class _OnboardingThresholdPage extends ConsumerWidget {
                         isComplete: canGoNext,
                       ),
                       const SizedBox(height: 20),
-                      Text(_statusText(state), style: AppTextStyles.label),
+                      Text(
+                        _statusText(state),
+                        style: AppTextStyles.label,
+                        textAlign: TextAlign.center,
+                      ),
                     ],
                   ),
                 ),
@@ -188,8 +198,13 @@ class _OnboardingThresholdPage extends ConsumerWidget {
   }
 
   String _statusText(ThresholdSetupState state) {
-    if (state.isCapturing) return '측정 중입니다.';
-    if (state.savedThreshold != null) return '측정 완료';
+    // 측정 중에는 지금까지 몇 회로 인식했는지 바로 보여 준다.
+    // 인식이 안 되고 있으면 사용자가 즉시 알아차릴 수 있다.
+    if (state.isCapturing) return '측정 중 · ${state.liveRepCount}회 인식';
+
+    final result = state.lastResult;
+    if (result != null) return '측정 완료 · ${result.detectedRepCount}회로 인식';
+    if (state.failureMessage != null) return state.failureMessage!;
     return '측정 시작을 눌러주세요.';
   }
 }

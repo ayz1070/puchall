@@ -1,138 +1,156 @@
 import 'exercise_type.dart';
+import '../services/rep_detector.dart';
 
+/// 반복 카운팅 기준치.
+///
+/// v2부터 판정 신호가 "중력이 제거된 수직 선형 가속도(m/s², 위쪽 양수)"로 바뀌었다.
+/// v1은 중력이 포함된 원시 가속도 magnitude를 기준으로 삼았기 때문에 두 값은
+/// 서로 다른 신호 공간에 있어 변환이 불가능하다. 따라서 v1 기준치는 [tryFromJson]이
+/// null을 돌려주고, 사용자는 기준치를 다시 측정하게 된다.
 class WorkoutThreshold {
   const WorkoutThreshold({
     required this.exerciseType,
-    required this.accelerationMagnitude,
-    this.gyroscopeMagnitude = defaultGyroscopeMagnitude,
-    this.magnetometerMagnitude = defaultMagnetometerMagnitude,
-    this.sampleDurationMs = defaultSampleDurationMs,
-    this.accelerationTriggerRatio = defaultAccelerationTriggerRatio,
-    this.gyroscopeTriggerRatio = defaultGyroscopeTriggerRatio,
-    this.magnetometerTriggerRatio = defaultMagnetometerTriggerRatio,
-    this.releaseRatio = defaultReleaseRatio,
-    this.cooldownMs = defaultCooldownMs,
+    required this.amplitudeThreshold,
+    required this.minHalfPeriodMs,
+    required this.maxHalfPeriodMs,
+    required this.cooldownMs,
+    this.lowPassCutoffHz = RepDetectorConfig.defaultLowPassCutoffHz,
+    this.sampleDurationMs = 0,
+    this.calibratedRepCount = 0,
   });
 
-  factory WorkoutThreshold.normalized({
-    required ExerciseType exerciseType,
-    required double accelerationMagnitude,
-    double gyroscopeMagnitude = defaultGyroscopeMagnitude,
-    double magnetometerMagnitude = defaultMagnetometerMagnitude,
-    int sampleDurationMs = defaultSampleDurationMs,
-    double accelerationTriggerRatio = defaultAccelerationTriggerRatio,
-    double gyroscopeTriggerRatio = defaultGyroscopeTriggerRatio,
-    double magnetometerTriggerRatio = defaultMagnetometerTriggerRatio,
-    double releaseRatio = defaultReleaseRatio,
-    int cooldownMs = defaultCooldownMs,
-  }) {
-    return WorkoutThreshold(
-      exerciseType: exerciseType,
-      accelerationMagnitude: accelerationMagnitude <= 0
-          ? defaultAccelerationMagnitude
-          : accelerationMagnitude,
-      gyroscopeMagnitude: gyroscopeMagnitude <= 0
-          ? defaultGyroscopeMagnitude
-          : gyroscopeMagnitude,
-      magnetometerMagnitude: magnetometerMagnitude <= 0
-          ? defaultMagnetometerMagnitude
-          : magnetometerMagnitude,
-      sampleDurationMs: sampleDurationMs <= 0
-          ? defaultSampleDurationMs
-          : sampleDurationMs,
-      accelerationTriggerRatio: _validRatio(
-        accelerationTriggerRatio,
-        defaultAccelerationTriggerRatio,
+  /// 기준치를 측정하지 않은 사용자를 위한 출발점.
+  ///
+  /// 실기기 데이터로 검증된 값이 아니라 동작 물리에서 추정한 값이므로,
+  /// 온보딩에서 기준치를 측정하면 사용자별 값으로 대체된다.
+  factory WorkoutThreshold.defaultsFor(ExerciseType exerciseType) {
+    return switch (exerciseType) {
+      ExerciseType.pullUp => const WorkoutThreshold(
+        exerciseType: ExerciseType.pullUp,
+        amplitudeThreshold: 1.0,
+        minHalfPeriodMs: 400,
+        maxHalfPeriodMs: 3500,
+        cooldownMs: 1200,
       ),
-      gyroscopeTriggerRatio: _validRatio(
-        gyroscopeTriggerRatio,
-        defaultGyroscopeTriggerRatio,
+      _ => WorkoutThreshold(
+        exerciseType: exerciseType,
+        amplitudeThreshold: 0.8,
+        minHalfPeriodMs: 250,
+        maxHalfPeriodMs: 2500,
+        cooldownMs: 800,
       ),
-      magnetometerTriggerRatio: _validRatio(
-        magnetometerTriggerRatio,
-        defaultMagnetometerTriggerRatio,
-      ),
-      releaseRatio: _validRatio(releaseRatio, defaultReleaseRatio),
-      cooldownMs: cooldownMs < 0 ? defaultCooldownMs : cooldownMs,
-    );
-  }
-
-  static const defaultAccelerationMagnitude = 18.0;
-  static const defaultGyroscopeMagnitude = 1.2;
-  static const defaultMagnetometerMagnitude = 45.0;
-  static const defaultSampleDurationMs = 1200;
-  static const defaultAccelerationTriggerRatio = 0.9;
-  static const defaultGyroscopeTriggerRatio = 0.9;
-  static const defaultMagnetometerTriggerRatio = 0.9;
-  static const defaultReleaseRatio = 0.55;
-  static const defaultCooldownMs = 600;
-
-  final ExerciseType exerciseType;
-  final double accelerationMagnitude;
-  final double gyroscopeMagnitude;
-  final double magnetometerMagnitude;
-  final int sampleDurationMs;
-  final double accelerationTriggerRatio;
-  final double gyroscopeTriggerRatio;
-  final double magnetometerTriggerRatio;
-  final double releaseRatio;
-  final int cooldownMs;
-
-  double get accelerationThreshold =>
-      accelerationMagnitude * accelerationTriggerRatio;
-
-  double get gyroscopeThreshold => gyroscopeMagnitude * gyroscopeTriggerRatio;
-
-  double get magnetometerThreshold =>
-      magnetometerMagnitude * magnetometerTriggerRatio;
-
-  Map<String, dynamic> toJson() {
-    return {
-      'exerciseType': exerciseType.slug,
-      'accelerationMagnitude': accelerationMagnitude,
-      'gyroscopeMagnitude': gyroscopeMagnitude,
-      'magnetometerMagnitude': magnetometerMagnitude,
-      'sampleDurationMs': sampleDurationMs,
-      'accelerationTriggerRatio': accelerationTriggerRatio,
-      'gyroscopeTriggerRatio': gyroscopeTriggerRatio,
-      'magnetometerTriggerRatio': magnetometerTriggerRatio,
-      'releaseRatio': releaseRatio,
-      'cooldownMs': cooldownMs,
     };
   }
 
-  static WorkoutThreshold fromJson(Map<String, dynamic> json) {
-    return WorkoutThreshold.normalized(
-      exerciseType: ExerciseType.fromSlug(json['exerciseType'] as String?),
-      accelerationMagnitude:
-          (json['accelerationMagnitude'] as num?)?.toDouble() ??
-          defaultAccelerationMagnitude,
-      gyroscopeMagnitude:
-          (json['gyroscopeMagnitude'] as num?)?.toDouble() ??
-          defaultGyroscopeMagnitude,
-      magnetometerMagnitude:
-          (json['magnetometerMagnitude'] as num?)?.toDouble() ??
-          defaultMagnetometerMagnitude,
-      sampleDurationMs:
-          (json['sampleDurationMs'] as num?)?.toInt() ??
-          defaultSampleDurationMs,
-      accelerationTriggerRatio:
-          (json['accelerationTriggerRatio'] as num?)?.toDouble() ??
-          defaultAccelerationTriggerRatio,
-      gyroscopeTriggerRatio:
-          (json['gyroscopeTriggerRatio'] as num?)?.toDouble() ??
-          defaultGyroscopeTriggerRatio,
-      magnetometerTriggerRatio:
-          (json['magnetometerTriggerRatio'] as num?)?.toDouble() ??
-          defaultMagnetometerTriggerRatio,
-      releaseRatio:
-          (json['releaseRatio'] as num?)?.toDouble() ?? defaultReleaseRatio,
-      cooldownMs: (json['cooldownMs'] as num?)?.toInt() ?? defaultCooldownMs,
+  factory WorkoutThreshold.normalized({
+    required ExerciseType exerciseType,
+    required double amplitudeThreshold,
+    required int minHalfPeriodMs,
+    required int maxHalfPeriodMs,
+    required int cooldownMs,
+    double lowPassCutoffHz = RepDetectorConfig.defaultLowPassCutoffHz,
+    int sampleDurationMs = 0,
+    int calibratedRepCount = 0,
+  }) {
+    final fallback = WorkoutThreshold.defaultsFor(exerciseType);
+    final safeMinHalfPeriodMs = minHalfPeriodMs < minHalfPeriodLimitMs
+        ? fallback.minHalfPeriodMs
+        : minHalfPeriodMs;
+    final safeMaxHalfPeriodMs = maxHalfPeriodMs <= safeMinHalfPeriodMs
+        ? fallback.maxHalfPeriodMs
+        : (maxHalfPeriodMs > maxHalfPeriodLimitMs
+              ? maxHalfPeriodLimitMs
+              : maxHalfPeriodMs);
+
+    return WorkoutThreshold(
+      exerciseType: exerciseType,
+      amplitudeThreshold: amplitudeThreshold < minAmplitudeThreshold
+          ? minAmplitudeThreshold
+          : amplitudeThreshold,
+      minHalfPeriodMs: safeMinHalfPeriodMs,
+      // min이 max를 넘지 않도록 최종 보정한다.
+      maxHalfPeriodMs: safeMaxHalfPeriodMs <= safeMinHalfPeriodMs
+          ? safeMinHalfPeriodMs + minHalfPeriodLimitMs
+          : safeMaxHalfPeriodMs,
+      cooldownMs: cooldownMs < 0 ? fallback.cooldownMs : cooldownMs,
+      lowPassCutoffHz: lowPassCutoffHz <= 0
+          ? RepDetectorConfig.defaultLowPassCutoffHz
+          : lowPassCutoffHz,
+      sampleDurationMs: sampleDurationMs < 0 ? 0 : sampleDurationMs,
+      calibratedRepCount: calibratedRepCount < 0 ? 0 : calibratedRepCount,
     );
   }
 
-  static double _validRatio(double value, double fallback) {
-    if (value <= 0 || value > 1) return fallback;
-    return value;
+  static const schemaVersion = 2;
+
+  /// 센서 잡음 수준까지 기준치가 내려가지 않도록 하는 하한.
+  static const minAmplitudeThreshold = 0.15;
+  static const minHalfPeriodLimitMs = 120;
+  static const maxHalfPeriodLimitMs = 6000;
+
+  final ExerciseType exerciseType;
+
+  /// 위/아래로 각각 넘어야 하는 수직 가속도 크기 (m/s²).
+  final double amplitudeThreshold;
+  final int minHalfPeriodMs;
+  final int maxHalfPeriodMs;
+  final int cooldownMs;
+  final double lowPassCutoffHz;
+
+  /// 기준치를 측정할 때 사용한 캡처 길이 (표시용).
+  final int sampleDurationMs;
+
+  /// 이 기준치로 캡처 구간을 다시 재생했을 때 인식된 반복 횟수 (표시용).
+  final int calibratedRepCount;
+
+  RepDetectorConfig get detectorConfig {
+    return RepDetectorConfig(
+      amplitudeThreshold: amplitudeThreshold,
+      minHalfPeriodMs: minHalfPeriodMs,
+      maxHalfPeriodMs: maxHalfPeriodMs,
+      cooldownMs: cooldownMs,
+      lowPassCutoffHz: lowPassCutoffHz,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'schemaVersion': schemaVersion,
+      'exerciseType': exerciseType.slug,
+      'amplitudeThreshold': amplitudeThreshold,
+      'minHalfPeriodMs': minHalfPeriodMs,
+      'maxHalfPeriodMs': maxHalfPeriodMs,
+      'cooldownMs': cooldownMs,
+      'lowPassCutoffHz': lowPassCutoffHz,
+      'sampleDurationMs': sampleDurationMs,
+      'calibratedRepCount': calibratedRepCount,
+    };
+  }
+
+  /// v2 기준치만 복원한다. v1이거나 형식이 깨졌으면 null을 돌려준다.
+  static WorkoutThreshold? tryFromJson(Map<String, dynamic> json) {
+    final version = (json['schemaVersion'] as num?)?.toInt();
+    if (version != schemaVersion) return null;
+
+    final amplitudeThreshold = (json['amplitudeThreshold'] as num?)?.toDouble();
+    if (amplitudeThreshold == null) return null;
+
+    final exerciseType = ExerciseType.fromSlug(json['exerciseType'] as String?);
+    final fallback = WorkoutThreshold.defaultsFor(exerciseType);
+
+    return WorkoutThreshold.normalized(
+      exerciseType: exerciseType,
+      amplitudeThreshold: amplitudeThreshold,
+      minHalfPeriodMs:
+          (json['minHalfPeriodMs'] as num?)?.toInt() ?? fallback.minHalfPeriodMs,
+      maxHalfPeriodMs:
+          (json['maxHalfPeriodMs'] as num?)?.toInt() ?? fallback.maxHalfPeriodMs,
+      cooldownMs: (json['cooldownMs'] as num?)?.toInt() ?? fallback.cooldownMs,
+      lowPassCutoffHz:
+          (json['lowPassCutoffHz'] as num?)?.toDouble() ??
+          RepDetectorConfig.defaultLowPassCutoffHz,
+      sampleDurationMs: (json['sampleDurationMs'] as num?)?.toInt() ?? 0,
+      calibratedRepCount: (json['calibratedRepCount'] as num?)?.toInt() ?? 0,
+    );
   }
 }

@@ -19,8 +19,14 @@ class ProfileLocalDataSource {
     final rawValue = _preferences.getString(_profileKey);
     if (rawValue == null) return UserProfile.defaultProfile;
 
-    final json = jsonDecode(rawValue) as Map<String, dynamic>;
-    return UserProfile.fromJson(json);
+    try {
+      final json = jsonDecode(rawValue) as Map<String, dynamic>;
+      return UserProfile.fromJson(json);
+    } on FormatException {
+      return UserProfile.defaultProfile;
+    } on TypeError {
+      return UserProfile.defaultProfile;
+    }
   }
 
   Future<void> saveProfile(UserProfile profile) async {

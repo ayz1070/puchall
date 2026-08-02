@@ -99,7 +99,7 @@ class CardioMeasureViewModel extends StateNotifier<CardioMeasureState> {
   final Ref _ref;
   StreamSubscription<WorkoutTrackingSnapshot>? _trackingSubscription;
 
-  Future<void> start({required double weightKg}) async {
+  Future<void> start({required double weightKg, double heightCm = 0}) async {
     if (state.isMeasuring) return;
 
     state = CardioMeasureState(
@@ -112,6 +112,7 @@ class CardioMeasureViewModel extends StateNotifier<CardioMeasureState> {
       await trackingService.startCardio(
         exerciseType: state.exerciseType,
         weightKg: weightKg,
+        heightCm: heightCm,
       );
     } on PlatformException {
       state = CardioMeasureState(

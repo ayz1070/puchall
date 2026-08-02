@@ -10,15 +10,13 @@ class SaveWorkoutThreshold {
     return _repository.saveThreshold(
       WorkoutThreshold.normalized(
         exerciseType: threshold.exerciseType,
-        accelerationMagnitude: threshold.accelerationMagnitude,
-        gyroscopeMagnitude: threshold.gyroscopeMagnitude,
-        magnetometerMagnitude: threshold.magnetometerMagnitude,
-        sampleDurationMs: threshold.sampleDurationMs,
-        accelerationTriggerRatio: threshold.accelerationTriggerRatio,
-        gyroscopeTriggerRatio: threshold.gyroscopeTriggerRatio,
-        magnetometerTriggerRatio: threshold.magnetometerTriggerRatio,
-        releaseRatio: threshold.releaseRatio,
+        amplitudeThreshold: threshold.amplitudeThreshold,
+        minHalfPeriodMs: threshold.minHalfPeriodMs,
+        maxHalfPeriodMs: threshold.maxHalfPeriodMs,
         cooldownMs: threshold.cooldownMs,
+        lowPassCutoffHz: threshold.lowPassCutoffHz,
+        sampleDurationMs: threshold.sampleDurationMs,
+        calibratedRepCount: threshold.calibratedRepCount,
       ),
     );
   }

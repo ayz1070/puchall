@@ -4,10 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:puchall/app.dart';
 import 'package:puchall/environment/environment.dart';
 import 'package:puchall/environment/environment_type.dart';
+import 'package:puchall/features/workout/data/data_sources/workout_session_database.dart';
 import 'package:puchall/features/workout/di/workout_dependencies.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
+  setUpAll(() {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  });
+
   const defaultProfileJson =
       '{"name":"Puchall User","imagePath":"assets/images/default_profile.png","weightKg":70}';
 
@@ -17,10 +24,18 @@ void main() {
     SharedPreferences.setMockInitialValues({'onboarding_step': 'profile'});
     final preferences = await SharedPreferences.getInstance();
     Environment.init(EnvironmentType.prod);
+    late final Database database;
+    await tester.runAsync(() async {
+      database = await openWorkoutSessionDatabase(path: inMemoryDatabasePath);
+    });
+    addTearDown(database.close);
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          workoutDatabaseProvider.overrideWithValue(database),
+        ],
         child: const PuchallApp(),
       ),
     );
@@ -38,8 +53,8 @@ void main() {
 
     expect(find.text('프로필 설정'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextField).first, 'New User');
-    await tester.enterText(find.byType(TextField).last, '72');
+    await tester.enterText(find.byType(TextField).at(0), 'New User');
+    await tester.enterText(find.byType(TextField).at(1), '72');
     await tester.tap(find.text('다음'));
     await tester.pumpAndSettle();
 
@@ -58,10 +73,18 @@ void main() {
     });
     final preferences = await SharedPreferences.getInstance();
     Environment.init(EnvironmentType.prod);
+    late final Database database;
+    await tester.runAsync(() async {
+      database = await openWorkoutSessionDatabase(path: inMemoryDatabasePath);
+    });
+    addTearDown(database.close);
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          workoutDatabaseProvider.overrideWithValue(database),
+        ],
         child: const PuchallApp(),
       ),
     );
@@ -83,10 +106,18 @@ void main() {
       });
       final preferences = await SharedPreferences.getInstance();
       Environment.init(EnvironmentType.prod);
+      late final Database database;
+      await tester.runAsync(() async {
+        database = await openWorkoutSessionDatabase(path: inMemoryDatabasePath);
+      });
+      addTearDown(database.close);
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(preferences),
+            workoutDatabaseProvider.overrideWithValue(database),
+          ],
           child: const PuchallApp(),
         ),
       );
@@ -108,10 +139,18 @@ void main() {
     });
     final preferences = await SharedPreferences.getInstance();
     Environment.init(EnvironmentType.prod);
+    late final Database database;
+    await tester.runAsync(() async {
+      database = await openWorkoutSessionDatabase(path: inMemoryDatabasePath);
+    });
+    addTearDown(database.close);
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          workoutDatabaseProvider.overrideWithValue(database),
+        ],
         child: const PuchallApp(),
       ),
     );
@@ -141,10 +180,18 @@ void main() {
     });
     final preferences = await SharedPreferences.getInstance();
     Environment.init(EnvironmentType.prod);
+    late final Database database;
+    await tester.runAsync(() async {
+      database = await openWorkoutSessionDatabase(path: inMemoryDatabasePath);
+    });
+    addTearDown(database.close);
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          workoutDatabaseProvider.overrideWithValue(database),
+        ],
         child: const PuchallApp(),
       ),
     );
@@ -158,6 +205,13 @@ void main() {
     expect(find.text('PUSH UP'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.calendar_today_outlined));
+    await tester.pump();
+    // 데일리 화면은 SQLite에서 세션을 비동기로 읽어온 뒤에야 그려진다. pumpAndSettle은
+    // FakeAsync 클럭만 넘기므로, 실제 isolate 통신이 끝날 시간을 real 존에서 확보해준다.
+    // (pump 계열 메서드는 runAsync 콜백 안에서 호출하면 안 되므로 밖에서 이어서 부른다.)
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('데일리'), findsWidgets);

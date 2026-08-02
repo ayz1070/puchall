@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/ads/banner_ad_slot.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -24,6 +25,10 @@ class CardioMeasurePage extends ConsumerWidget {
     final weightKg = profile.maybeWhen(
       data: (value) => value.weightKg,
       orElse: () => 70.0,
+    );
+    final heightCm = profile.maybeWhen(
+      data: (value) => value.heightCm,
+      orElse: () => 0.0,
     );
 
     final canPop = context.canPop();
@@ -151,6 +156,9 @@ class CardioMeasurePage extends ConsumerWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 8),
+            const BannerAdSlot(horizontalPadding: 20),
+            const SizedBox(height: 20),
             SafeArea(
               top: false,
               child: SizedBox(
@@ -175,7 +183,10 @@ class CardioMeasurePage extends ConsumerWidget {
                                     SnackBar(content: Text(message)),
                                   );
                                 }
-                              : () => notifier.start(weightKg: weightKg),
+                              : () => notifier.start(
+                                  weightKg: weightKg,
+                                  heightCm: heightCm,
+                                ),
                         ),
                       ),
                     ),

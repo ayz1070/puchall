@@ -18,6 +18,7 @@ class ProfileEditPage extends ConsumerStatefulWidget {
 class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
   late final TextEditingController _nameController;
   late final TextEditingController _weightController;
+  late final TextEditingController _heightController;
   bool _didPopulateFields = false;
 
   @override
@@ -25,12 +26,14 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
     super.initState();
     _nameController = TextEditingController();
     _weightController = TextEditingController();
+    _heightController = TextEditingController();
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _weightController.dispose();
+    _heightController.dispose();
     super.dispose();
   }
 
@@ -39,10 +42,13 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
     final weightKg = double.tryParse(_weightController.text.trim());
     if (name.isEmpty || weightKg == null || weightKg <= 0) return;
 
+    final heightCm = double.tryParse(_heightController.text.trim());
+
     final updatedProfile = UserProfile(
       name: name,
       imagePath: currentProfile.imagePath,
       weightKg: weightKg,
+      heightCm: heightCm != null && heightCm > 0 ? heightCm : 0,
     );
 
     await ref.read(saveProfileProvider(updatedProfile).future);
@@ -63,6 +69,9 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
             if (!_didPopulateFields) {
               _nameController.text = value.name;
               _weightController.text = value.weightKg.toStringAsFixed(0);
+              _heightController.text = value.heightCm > 0
+                  ? value.heightCm.toStringAsFixed(0)
+                  : '';
               _didPopulateFields = true;
             }
 
@@ -80,6 +89,15 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                 AppTextField(
                   controller: _weightController,
                   label: '체중(kg)',
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 12),
+                AppTextField(
+                  controller: _heightController,
+                  label: '키(cm) · 선택',
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),

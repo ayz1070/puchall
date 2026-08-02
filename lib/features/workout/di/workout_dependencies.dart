@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
 
 import '../data/data_sources/workout_local_data_source.dart';
 import '../data/data_sources/workout_tracking_service_data_source.dart';
@@ -16,8 +17,15 @@ final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
   throw UnimplementedError('SharedPreferences must be overridden.');
 });
 
+final workoutDatabaseProvider = Provider<Database>((ref) {
+  throw UnimplementedError('Database must be overridden.');
+});
+
 final workoutLocalDataSourceProvider = Provider<WorkoutLocalDataSource>((ref) {
-  return WorkoutLocalDataSource(ref.watch(sharedPreferencesProvider));
+  return WorkoutLocalDataSource(
+    ref.watch(sharedPreferencesProvider),
+    ref.watch(workoutDatabaseProvider),
+  );
 });
 
 final workoutTrackingServiceDataSourceProvider =
