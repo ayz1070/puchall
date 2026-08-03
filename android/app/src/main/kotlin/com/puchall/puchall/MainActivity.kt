@@ -45,6 +45,8 @@ class MainActivity : FlutterActivity() {
                         cooldownMs = (args["cooldownMs"] as? Number)?.toLong() ?: 800L,
                         lowPassCutoffHz = (args["lowPassCutoffHz"] as? Number)?.toDouble()
                             ?: RepDetectorConfig.DEFAULT_LOW_PASS_CUTOFF_HZ,
+                        verticalAccelerationScale =
+                            (args["verticalAccelerationScale"] as? Number)?.toDouble() ?: 1.0,
                         weightKg = (args["weightKg"] as? Number)?.toDouble() ?: 70.0,
                         heightCm = (args["heightCm"] as? Number)?.toDouble() ?: 0.0,
                     )

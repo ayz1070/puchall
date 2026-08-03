@@ -8,6 +8,8 @@ class RepDetectorConfig(
     val maxHalfPeriodMs: Long,
     val cooldownMs: Long,
     val lowPassCutoffHz: Double = DEFAULT_LOW_PASS_CUTOFF_HZ,
+    val verticalAccelerationScale: Double = 1.0,
+    val releaseThresholdRatio: Double = 0.45,
 ) {
     companion object {
         const val DEFAULT_LOW_PASS_CUTOFF_HZ = 2.5
@@ -26,7 +28,7 @@ class RepDetectorConfig(
  */
 class RepDetector(private val config: RepDetectorConfig) {
 
-    private enum class Phase { WAITING_FOR_VALLEY, WAITING_FOR_PEAK }
+    private enum class Phase { WAITING_FOR_VALLEY, WAITING_FOR_PEAK, WAITING_FOR_RECOVERY }
 
     private var filteredValue: Double? = null
     private var filterTimestampMs: Long? = null
@@ -40,7 +42,10 @@ class RepDetector(private val config: RepDetectorConfig) {
 
     /** 샘플 하나를 넣고, 이 샘플에서 반복이 완성되면 true를 돌려준다. */
     fun update(verticalAcceleration: Double, timestampMs: Long): Boolean {
-        val value = lowPass(verticalAcceleration, timestampMs)
+        val value = lowPass(
+            verticalAcceleration * config.verticalAccelerationScale,
+            timestampMs,
+        )
 
         when (phase) {
             Phase.WAITING_FOR_VALLEY -> {
@@ -62,13 +67,13 @@ class RepDetector(private val config: RepDetectorConfig) {
 
                 if (elapsedMs > config.maxHalfPeriodMs) {
                     // 내려간 뒤 제때 올라오지 않았다. 반복으로 보지 않는다.
-                    phase = Phase.WAITING_FOR_VALLEY
+                    phase = Phase.WAITING_FOR_RECOVERY
                     return false
                 }
 
                 if (value < config.amplitudeThreshold) return false
 
-                phase = Phase.WAITING_FOR_VALLEY
+                phase = Phase.WAITING_FOR_RECOVERY
 
                 if (elapsedMs < config.minHalfPeriodMs) return false
 
@@ -81,6 +86,15 @@ class RepDetector(private val config: RepDetectorConfig) {
                 count += 1
                 return true
             }
+
+            Phase.WAITING_FOR_RECOVERY -> {
+                if (kotlin.math.abs(value) <= releaseThreshold()) {
+                    phase = Phase.WAITING_FOR_VALLEY
+                    valleyTimestampMs = null
+                    valleyValue = 0.0
+                }
+                return false
+            }
         }
     }
 
@@ -92,6 +106,10 @@ class RepDetector(private val config: RepDetectorConfig) {
         valleyValue = 0.0
         lastCountedAtMs = null
         count = 0
+    }
+
+    private fun releaseThreshold(): Double {
+        return config.amplitudeThreshold * config.releaseThresholdRatio.coerceIn(0.1, 0.9)
     }
 
     /**

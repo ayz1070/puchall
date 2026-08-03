@@ -36,6 +36,7 @@ void main() {
           minHalfPeriodMs: 420,
           maxHalfPeriodMs: 2400,
           cooldownMs: 900,
+          verticalAccelerationScale: -1,
           sampleDurationMs: 30000,
           calibratedRepCount: 12,
         ),
@@ -48,6 +49,7 @@ void main() {
       expect(threshold?.minHalfPeriodMs, 420);
       expect(threshold?.maxHalfPeriodMs, 2400);
       expect(threshold?.cooldownMs, 900);
+      expect(threshold?.verticalAccelerationScale, -1);
       expect(threshold?.calibratedRepCount, 12);
       expect(await dataSource.getThreshold(ExerciseType.pullUp), isNull);
     });
@@ -57,7 +59,7 @@ void main() {
       SharedPreferences.setMockInitialValues({
         'workout_threshold_push-up':
             '{"exerciseType":"push-up","accelerationMagnitude":18.0,'
-                '"gyroscopeMagnitude":1.2,"releaseRatio":0.55,"cooldownMs":600}',
+            '"gyroscopeMagnitude":1.2,"releaseRatio":0.55,"cooldownMs":600}',
       });
       final preferences = await SharedPreferences.getInstance();
       final legacyDataSource = WorkoutLocalDataSource(preferences, database);

@@ -129,7 +129,9 @@ final class WorkoutTrackingManager: NSObject {
                     cooldownMs: (args["cooldownMs"] as? NSNumber)?.doubleValue
                         ?? Self.defaultCooldownMs,
                     lowPassCutoffHz: (args["lowPassCutoffHz"] as? NSNumber)?.doubleValue
-                        ?? RepDetectorConfig.defaultLowPassCutoffHz
+                        ?? RepDetectorConfig.defaultLowPassCutoffHz,
+                    verticalAccelerationScale:
+                        (args["verticalAccelerationScale"] as? NSNumber)?.doubleValue ?? 1.0
                 )
             )
         }

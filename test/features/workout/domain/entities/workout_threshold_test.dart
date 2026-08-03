@@ -47,6 +47,7 @@ void main() {
         minHalfPeriodMs: 500,
         maxHalfPeriodMs: 3000,
         cooldownMs: 1100,
+        verticalAccelerationScale: -1,
         sampleDurationMs: 30000,
         calibratedRepCount: 9,
       );
@@ -59,10 +60,11 @@ void main() {
       expect(restored.minHalfPeriodMs, 500);
       expect(restored.maxHalfPeriodMs, 3000);
       expect(restored.cooldownMs, 1100);
+      expect(restored.verticalAccelerationScale, -1);
       expect(restored.calibratedRepCount, 9);
     });
 
-    test('구버전(v1) 기준치는 복원하지 않아 재측정을 유도한다', () {
+    test('구버전 기준치는 복원하지 않아 재측정을 유도한다', () {
       // v1은 중력이 포함된 가속도 magnitude 기준이라 그대로 쓰면 오작동한다.
       const legacyJson = {
         'exerciseType': 'push-up',
@@ -74,6 +76,16 @@ void main() {
       };
 
       expect(WorkoutThreshold.tryFromJson(legacyJson), isNull);
+
+      // v2는 방향 보정값이 없어 풀업처럼 반대 위상으로 들어온 신호를 놓칠 수 있다.
+      expect(
+        WorkoutThreshold.tryFromJson(const {
+          'schemaVersion': 2,
+          'exerciseType': 'pull-up',
+          'amplitudeThreshold': 0.5,
+        }),
+        isNull,
+      );
     });
 
     test('스키마 버전이 없으면 복원하지 않는다', () {

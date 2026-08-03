@@ -6,10 +6,7 @@ import 'package:puchall/features/workout/domain/services/workout_threshold_calib
 
 import 'signal_fixtures.dart';
 
-int countReps(
-  RepDetectorConfig config,
-  List<WorkoutThresholdSample> samples,
-) {
+int countReps(RepDetectorConfig config, List<WorkoutThresholdSample> samples) {
   final detector = RepDetector(config);
   for (final sample in samples) {
     detector.update(sample.verticalAcceleration, sample.timestampMs);
@@ -64,6 +61,34 @@ void main() {
       expect(countReps(slowConfig, samples), 6);
     });
 
+    test('반전된 풀업 신호는 방향 보정값으로 센다', () {
+      final invertedSamples =
+          repSignal(
+                repCount: 6,
+                periodSeconds: 3,
+                displacementAmplitudeMeters: 0.12,
+                noiseAmplitude: 0.02,
+              )
+              .map(
+                (sample) => WorkoutThresholdSample(
+                  timestampMs: sample.timestampMs,
+                  verticalAcceleration: -sample.verticalAcceleration,
+                ),
+              )
+              .toList();
+
+      final config = WorkoutThreshold.normalized(
+        exerciseType: ExerciseType.pullUp,
+        amplitudeThreshold: 0.25,
+        minHalfPeriodMs: 500,
+        maxHalfPeriodMs: 4500,
+        cooldownMs: 1200,
+        verticalAccelerationScale: -1,
+      ).detectorConfig;
+
+      expect(countReps(config, invertedSamples), 6);
+    });
+
     test('정지 상태의 잡음만으로는 세지 않는다', () {
       final samples = idleSignal(durationMs: 30000);
 
@@ -108,6 +133,36 @@ void main() {
 
       // 총 9초 구간에서 쿨다운이 5초이므로 두 번을 넘길 수 없다.
       expect(countReps(config, samples), lessThanOrEqualTo(2));
+    });
+
+    test('카운트 후 0 근처로 복귀해야 다음 반복을 받는다', () {
+      const config = RepDetectorConfig(
+        amplitudeThreshold: 1,
+        minHalfPeriodMs: 100,
+        maxHalfPeriodMs: 1000,
+        cooldownMs: 0,
+        lowPassCutoffHz: 1000,
+      );
+      final samples = [
+        const WorkoutThresholdSample(
+          timestampMs: 0,
+          verticalAcceleration: -1.3,
+        ),
+        const WorkoutThresholdSample(
+          timestampMs: 300,
+          verticalAcceleration: 1.3,
+        ),
+        const WorkoutThresholdSample(
+          timestampMs: 600,
+          verticalAcceleration: -1.3,
+        ),
+        const WorkoutThresholdSample(
+          timestampMs: 900,
+          verticalAcceleration: 1.3,
+        ),
+      ];
+
+      expect(countReps(config, samples), 1);
     });
 
     test('검출된 반복은 진폭과 절반 주기를 함께 보고한다', () {

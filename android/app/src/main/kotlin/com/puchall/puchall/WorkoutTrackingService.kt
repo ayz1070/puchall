@@ -347,6 +347,10 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
                     EXTRA_LOW_PASS_CUTOFF_HZ,
                     RepDetectorConfig.DEFAULT_LOW_PASS_CUTOFF_HZ,
                 ),
+                verticalAccelerationScale = intent.getDoubleExtra(
+                    EXTRA_VERTICAL_ACCELERATION_SCALE,
+                    DEFAULT_VERTICAL_ACCELERATION_SCALE,
+                ),
             ),
         )
         count = 0
@@ -1171,6 +1175,7 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
         const val EXTRA_MIN_HALF_PERIOD_MS = "minHalfPeriodMs"
         const val EXTRA_MAX_HALF_PERIOD_MS = "maxHalfPeriodMs"
         const val EXTRA_LOW_PASS_CUTOFF_HZ = "lowPassCutoffHz"
+        const val EXTRA_VERTICAL_ACCELERATION_SCALE = "verticalAccelerationScale"
         const val EXTRA_COOLDOWN_MS = "cooldownMs"
         const val EXTRA_WEIGHT_KG = "weightKg"
         const val EXTRA_HEIGHT_CM = "heightCm"
@@ -1185,6 +1190,7 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
         private const val DEFAULT_MIN_HALF_PERIOD_MS = 250L
         private const val DEFAULT_MAX_HALF_PERIOD_MS = 2500L
         private const val DEFAULT_COOLDOWN_MS = 800L
+        private const val DEFAULT_VERTICAL_ACCELERATION_SCALE = 1.0
 
         private const val CHANNEL_ID = "workout_tracking"
         private const val NOTIFICATION_ID = 1201
@@ -1301,6 +1307,7 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
             maxHalfPeriodMs: Long,
             cooldownMs: Long,
             lowPassCutoffHz: Double,
+            verticalAccelerationScale: Double,
             weightKg: Double,
             heightCm: Double,
         ): Intent {
@@ -1312,6 +1319,7 @@ class WorkoutTrackingService : Service(), SensorEventListener, LocationListener 
                 .putExtra(EXTRA_MAX_HALF_PERIOD_MS, maxHalfPeriodMs)
                 .putExtra(EXTRA_COOLDOWN_MS, cooldownMs)
                 .putExtra(EXTRA_LOW_PASS_CUTOFF_HZ, lowPassCutoffHz)
+                .putExtra(EXTRA_VERTICAL_ACCELERATION_SCALE, verticalAccelerationScale)
                 .putExtra(EXTRA_WEIGHT_KG, weightKg)
                 .putExtra(EXTRA_HEIGHT_CM, heightCm)
         }

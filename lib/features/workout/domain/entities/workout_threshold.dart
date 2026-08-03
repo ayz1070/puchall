@@ -3,10 +3,10 @@ import '../services/rep_detector.dart';
 
 /// 반복 카운팅 기준치.
 ///
-/// v2부터 판정 신호가 "중력이 제거된 수직 선형 가속도(m/s², 위쪽 양수)"로 바뀌었다.
-/// v1은 중력이 포함된 원시 가속도 magnitude를 기준으로 삼았기 때문에 두 값은
-/// 서로 다른 신호 공간에 있어 변환이 불가능하다. 따라서 v1 기준치는 [tryFromJson]이
-/// null을 돌려주고, 사용자는 기준치를 다시 측정하게 된다.
+/// v3부터 사용자별 수직 가속도 방향 보정값을 함께 저장한다.
+/// v1은 중력이 포함된 원시 가속도 magnitude를 기준으로 삼았고, v2는 방향 보정값이
+/// 없어 풀업처럼 반대 위상으로 들어온 신호를 놓칠 수 있다. 구버전 기준치는
+/// [tryFromJson]이 null을 돌려주고, 사용자는 기준치를 다시 측정하게 된다.
 class WorkoutThreshold {
   const WorkoutThreshold({
     required this.exerciseType,
@@ -15,6 +15,7 @@ class WorkoutThreshold {
     required this.maxHalfPeriodMs,
     required this.cooldownMs,
     this.lowPassCutoffHz = RepDetectorConfig.defaultLowPassCutoffHz,
+    this.verticalAccelerationScale = 1,
     this.sampleDurationMs = 0,
     this.calibratedRepCount = 0,
   });
@@ -31,6 +32,7 @@ class WorkoutThreshold {
         minHalfPeriodMs: 400,
         maxHalfPeriodMs: 3500,
         cooldownMs: 1200,
+        verticalAccelerationScale: 1,
       ),
       _ => WorkoutThreshold(
         exerciseType: exerciseType,
@@ -38,6 +40,7 @@ class WorkoutThreshold {
         minHalfPeriodMs: 250,
         maxHalfPeriodMs: 2500,
         cooldownMs: 800,
+        verticalAccelerationScale: 1,
       ),
     };
   }
@@ -49,6 +52,7 @@ class WorkoutThreshold {
     required int maxHalfPeriodMs,
     required int cooldownMs,
     double lowPassCutoffHz = RepDetectorConfig.defaultLowPassCutoffHz,
+    double verticalAccelerationScale = 1,
     int sampleDurationMs = 0,
     int calibratedRepCount = 0,
   }) {
@@ -76,12 +80,13 @@ class WorkoutThreshold {
       lowPassCutoffHz: lowPassCutoffHz <= 0
           ? RepDetectorConfig.defaultLowPassCutoffHz
           : lowPassCutoffHz,
+      verticalAccelerationScale: verticalAccelerationScale < 0 ? -1 : 1,
       sampleDurationMs: sampleDurationMs < 0 ? 0 : sampleDurationMs,
       calibratedRepCount: calibratedRepCount < 0 ? 0 : calibratedRepCount,
     );
   }
 
-  static const schemaVersion = 2;
+  static const schemaVersion = 3;
 
   /// 센서 잡음 수준까지 기준치가 내려가지 않도록 하는 하한.
   static const minAmplitudeThreshold = 0.15;
@@ -96,6 +101,7 @@ class WorkoutThreshold {
   final int maxHalfPeriodMs;
   final int cooldownMs;
   final double lowPassCutoffHz;
+  final double verticalAccelerationScale;
 
   /// 기준치를 측정할 때 사용한 캡처 길이 (표시용).
   final int sampleDurationMs;
@@ -110,6 +116,7 @@ class WorkoutThreshold {
       maxHalfPeriodMs: maxHalfPeriodMs,
       cooldownMs: cooldownMs,
       lowPassCutoffHz: lowPassCutoffHz,
+      verticalAccelerationScale: verticalAccelerationScale,
     );
   }
 
@@ -122,12 +129,13 @@ class WorkoutThreshold {
       'maxHalfPeriodMs': maxHalfPeriodMs,
       'cooldownMs': cooldownMs,
       'lowPassCutoffHz': lowPassCutoffHz,
+      'verticalAccelerationScale': verticalAccelerationScale,
       'sampleDurationMs': sampleDurationMs,
       'calibratedRepCount': calibratedRepCount,
     };
   }
 
-  /// v2 기준치만 복원한다. v1이거나 형식이 깨졌으면 null을 돌려준다.
+  /// v3 기준치만 복원한다. 구버전이거나 형식이 깨졌으면 null을 돌려준다.
   static WorkoutThreshold? tryFromJson(Map<String, dynamic> json) {
     final version = (json['schemaVersion'] as num?)?.toInt();
     if (version != schemaVersion) return null;
@@ -142,13 +150,17 @@ class WorkoutThreshold {
       exerciseType: exerciseType,
       amplitudeThreshold: amplitudeThreshold,
       minHalfPeriodMs:
-          (json['minHalfPeriodMs'] as num?)?.toInt() ?? fallback.minHalfPeriodMs,
+          (json['minHalfPeriodMs'] as num?)?.toInt() ??
+          fallback.minHalfPeriodMs,
       maxHalfPeriodMs:
-          (json['maxHalfPeriodMs'] as num?)?.toInt() ?? fallback.maxHalfPeriodMs,
+          (json['maxHalfPeriodMs'] as num?)?.toInt() ??
+          fallback.maxHalfPeriodMs,
       cooldownMs: (json['cooldownMs'] as num?)?.toInt() ?? fallback.cooldownMs,
       lowPassCutoffHz:
           (json['lowPassCutoffHz'] as num?)?.toDouble() ??
           RepDetectorConfig.defaultLowPassCutoffHz,
+      verticalAccelerationScale:
+          (json['verticalAccelerationScale'] as num?)?.toDouble() ?? 1,
       sampleDurationMs: (json['sampleDurationMs'] as num?)?.toInt() ?? 0,
       calibratedRepCount: (json['calibratedRepCount'] as num?)?.toInt() ?? 0,
     );

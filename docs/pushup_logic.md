@@ -30,6 +30,8 @@
 `amplitudeThreshold` : 위/아래로 각각 넘어야 하는 크기 (m/s²)
 `minHalfPeriodMs` / `maxHalfPeriodMs` : 골 → 마루에 걸리는 시간의 허용 범위
 `cooldownMs` : 직전 카운트로부터 최소 간격
+`verticalAccelerationScale` : 사용자별 신호 방향 보정값 (`1` 원본, `-1` 반전)
+`releaseThresholdRatio` : 카운트 후 다음 반복을 받기 전 0 근처 복귀로 볼 비율 (기본 `0.45`)
 
 ## 기본값 (기준치 미측정 시)
 `amplitudeThreshold = 0.8`
@@ -38,38 +40,63 @@
 `cooldownMs = 800`
 
 ## 카운팅
-아래로 내려갔다가 위로 올라오는 한 쌍(골 → 마루)을 반복 1회로 본다.
+먼저 `adjusted = verticalAcceleration * verticalAccelerationScale`로 사용자별 방향을 맞춘다.
+그 다음 아래로 내려갔다가 위로 올라오는 한 쌍(골 → 마루)을 반복 1회로 본다.
 ±기준치를 모두 통과해야 하므로 0 근처의 잡음으로는 카운트되지 않는다.
+카운트가 발생한 뒤에는 `abs(filtered) <= amplitudeThreshold * releaseThresholdRatio`까지
+복귀해야 다음 반복의 골을 받을 수 있다. 이 히스테리시스가 피크 근처 잔진동이나 주머니
+흔들림이 곧바로 다음 반복으로 이어지는 오탐을 줄인다.
 
 ```
+adjusted = verticalAcceleration * verticalAccelerationScale
+filtered = lowPass(adjusted)
+releaseThreshold = amplitudeThreshold * releaseThresholdRatio
+
 waitingForValley:
   if filtered <= -amplitudeThreshold:
     valleyAt = now; phase = waitingForPeak
 
 waitingForPeak:
   elapsed = now - valleyAt
-  if elapsed > maxHalfPeriodMs:        phase = waitingForValley   # 제때 안 올라옴
+  if elapsed > maxHalfPeriodMs:        phase = waitingForRecovery # 제때 안 올라옴
   if filtered <  amplitudeThreshold:   continue
-  phase = waitingForValley
+  phase = waitingForRecovery
   if elapsed < minHalfPeriodMs:        skip    # 흔들기
   if now - lastCountedAt < cooldownMs: skip
   count += 1; lastCountedAt = now
+
+waitingForRecovery:
+  if abs(filtered) <= releaseThreshold:
+    phase = waitingForValley
 ```
 
 ## 기준치 측정 (30초)
 측정과 **같은** 네이티브 파이프라인에서 수집한 샘플을 쓴다.
 
-1. 신호 진폭 분포(상위 95%의 35%)로 임시 임계값을 잡아 반복을 찾아낸다
-2. `medianAmplitude` = 찾아낸 반복들의 진폭 중앙값
-3. `amplitudeThreshold = medianAmplitude * 0.5`
+1. 원본 신호(`verticalAccelerationScale = 1`)와 반전 신호(`-1`)를 각각 평가한다
+2. 각 방향에서 신호 진폭 분포(상위 95%의 35%)로 임시 임계값을 잡아 반복을 찾아낸다
+3. 반복 수가 더 많고, 동률이면 첫 완성 반복이 더 빠른 방향을 사용자 방향으로 선택한다
+4. `medianAmplitude` = 선택된 방향에서 찾아낸 반복들의 진폭 중앙값
+5. `amplitudeThreshold = medianAmplitude * 0.5`
    (절반으로 잡아 세트 후반에 힘이 빠져도 계속 인식되게 한다)
-4. `minHalfPeriodMs = medianHalfPeriod * 0.45`
-   `maxHalfPeriodMs = medianHalfPeriod * 2.5`
-   `cooldownMs = medianRepInterval * 0.5`
-5. **폐루프 검증**: 산출한 기준치로 방금 캡처한 구간을 다시 세어 사용자에게 인식 횟수를 보여 준다
+6. 푸쉬업은 빠른 흔들림 오탐을 줄이기 위해 주기 관련 값을 보수적으로 잡는다
+   `minHalfPeriodMs = max(medianHalfPeriod * 0.5, 300)`
+   `maxHalfPeriodMs = min(medianHalfPeriod * 2.75, 4000)`
+   `cooldownMs = max(medianRepInterval * 0.6, 800)`
+7. `verticalAccelerationScale`을 기준치에 저장한다
+8. **폐루프 검증**: 산출한 기준치로 방금 캡처한 구간을 다시 세어 사용자에게 인식 횟수를 보여 준다
 
 반복이 3회 미만으로 감지되면 기준치를 저장하지 않고 재측정을 안내한다.
 `amplitudeThreshold`는 센서 잡음 수준(0.15 m/s²) 아래로 내려가지 않는다.
+
+캘리브레이션 결과에는 `signalQuality`도 포함한다. 0~1 사이 값이며 반복 진폭 안정성,
+반복 간격 안정성, 산출 기준치로 다시 세었을 때의 카운트 일치도를 함께 본다.
+
+## 기준치 저장
+`schemaVersion = 3`
+
+v1은 중력이 포함된 원시 magnitude 기준이고, v2는 방향 보정값이 없다. 둘 다 현재
+신호 공간과 완전히 호환되지 않으므로 복원하지 않고 재측정을 유도한다.
 
 ## 칼로리
 `MET = 3.8`

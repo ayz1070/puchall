@@ -25,8 +25,8 @@ class WorkoutLocalDataSource {
 
     try {
       final json = jsonDecode(rawValue) as Map<String, dynamic>;
-      // 구버전(v1) 기준치는 신호 공간이 달라 복원하지 않는다. null을 돌려주면
-      // 사용자는 기본값으로 측정하다가 기준치를 다시 측정하게 된다.
+      // 구버전 기준치는 신호 공간이나 방향 보정 정보가 달라 복원하지 않는다.
+      // null을 돌려주면 사용자는 기본값으로 측정하다가 기준치를 다시 측정하게 된다.
       return WorkoutThreshold.tryFromJson(json);
     } on FormatException {
       return null;

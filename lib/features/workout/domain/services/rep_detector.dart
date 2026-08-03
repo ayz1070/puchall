@@ -29,6 +29,8 @@ class RepDetectorConfig {
     required this.maxHalfPeriodMs,
     required this.cooldownMs,
     this.lowPassCutoffHz = defaultLowPassCutoffHz,
+    this.verticalAccelerationScale = 1,
+    this.releaseThresholdRatio = 0.45,
   });
 
   /// 반복 동작은 대략 0.2~1.5Hz이므로 그 위쪽 잡음만 걷어낸다.
@@ -47,9 +49,21 @@ class RepDetectorConfig {
   final int cooldownMs;
 
   final double lowPassCutoffHz;
+
+  /// 사용자별 측정에서 학습한 수직 가속도 방향 보정값.
+  ///
+  /// 기본값 1은 원본 신호, -1은 반전 신호다. 휴대폰 착용 방향이나 운동별 시작
+  /// 위상 차이 때문에 실제 반복이 반대로 들어오는 경우 같은 상태 머신을 재사용한다.
+  final double verticalAccelerationScale;
+
+  /// 카운트 후 다음 반복을 받기 전에 0 근처로 복귀했다고 볼 임계값 비율.
+  ///
+  /// 진입 임계값보다 낮은 해제 임계값을 둬서 피크 근처 잔진동이 새 반복의 시작으로
+  /// 바로 이어지는 것을 막는다.
+  final double releaseThresholdRatio;
 }
 
-enum _Phase { waitingForValley, waitingForPeak }
+enum _Phase { waitingForValley, waitingForPeak, waitingForRecovery }
 
 /// 중력이 제거된 수직 가속도 시계열에서 반복을 센다.
 ///
@@ -76,9 +90,15 @@ class RepDetector {
 
   double get filteredValue => _filter.value ?? 0;
 
+  double get _releaseThreshold =>
+      config.amplitudeThreshold * config.releaseThresholdRatio.clamp(0.1, 0.9);
+
   /// 샘플 하나를 넣고, 이 샘플에서 반복이 완성되면 그 반복을 돌려준다.
   DetectedRep? update(double verticalAcceleration, int timestampMs) {
-    final value = _filter.filter(verticalAcceleration, timestampMs);
+    final value = _filter.filter(
+      verticalAcceleration * config.verticalAccelerationScale,
+      timestampMs,
+    );
 
     switch (_phase) {
       case _Phase.waitingForValley:
@@ -99,13 +119,13 @@ class RepDetector {
 
         if (elapsedMs > config.maxHalfPeriodMs) {
           // 골까지 내려간 뒤 제때 올라오지 않았다. 반복으로 보지 않는다.
-          _phase = _Phase.waitingForValley;
+          _phase = _Phase.waitingForRecovery;
           return null;
         }
 
         if (value < config.amplitudeThreshold) return null;
 
-        _phase = _Phase.waitingForValley;
+        _phase = _Phase.waitingForRecovery;
 
         if (elapsedMs < config.minHalfPeriodMs) return null;
 
@@ -124,6 +144,14 @@ class RepDetector {
           valleyValue: _valleyValue,
           peakValue: value,
         );
+
+      case _Phase.waitingForRecovery:
+        if (value.abs() <= _releaseThreshold) {
+          _phase = _Phase.waitingForValley;
+          _valleyTimestampMs = null;
+          _valleyValue = 0;
+        }
+        return null;
     }
   }
 

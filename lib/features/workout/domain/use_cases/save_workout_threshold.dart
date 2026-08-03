@@ -15,6 +15,7 @@ class SaveWorkoutThreshold {
         maxHalfPeriodMs: threshold.maxHalfPeriodMs,
         cooldownMs: threshold.cooldownMs,
         lowPassCutoffHz: threshold.lowPassCutoffHz,
+        verticalAccelerationScale: threshold.verticalAccelerationScale,
         sampleDurationMs: threshold.sampleDurationMs,
         calibratedRepCount: threshold.calibratedRepCount,
       ),

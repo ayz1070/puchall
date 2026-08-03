@@ -37,6 +37,7 @@ class WorkoutTrackingServiceDataSource {
         'maxHalfPeriodMs': threshold.maxHalfPeriodMs,
         'cooldownMs': threshold.cooldownMs,
         'lowPassCutoffHz': threshold.lowPassCutoffHz,
+        'verticalAccelerationScale': threshold.verticalAccelerationScale,
         'weightKg': weightKg,
       });
     } on MissingPluginException {

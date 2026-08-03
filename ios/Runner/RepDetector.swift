@@ -8,19 +8,25 @@ struct RepDetectorConfig {
     let maxHalfPeriodMs: Double
     let cooldownMs: Double
     let lowPassCutoffHz: Double
+    let verticalAccelerationScale: Double
+    let releaseThresholdRatio: Double
 
     init(
         amplitudeThreshold: Double,
         minHalfPeriodMs: Double,
         maxHalfPeriodMs: Double,
         cooldownMs: Double,
-        lowPassCutoffHz: Double = RepDetectorConfig.defaultLowPassCutoffHz
+        lowPassCutoffHz: Double = RepDetectorConfig.defaultLowPassCutoffHz,
+        verticalAccelerationScale: Double = 1.0,
+        releaseThresholdRatio: Double = 0.45
     ) {
         self.amplitudeThreshold = amplitudeThreshold
         self.minHalfPeriodMs = minHalfPeriodMs
         self.maxHalfPeriodMs = maxHalfPeriodMs
         self.cooldownMs = cooldownMs
         self.lowPassCutoffHz = lowPassCutoffHz
+        self.verticalAccelerationScale = verticalAccelerationScale
+        self.releaseThresholdRatio = releaseThresholdRatio
     }
 }
 
@@ -34,6 +40,7 @@ final class RepDetector {
     private enum Phase {
         case waitingForValley
         case waitingForPeak
+        case waitingForRecovery
     }
 
     private let config: RepDetectorConfig
@@ -54,7 +61,10 @@ final class RepDetector {
     /// 샘플 하나를 넣고, 이 샘플에서 반복이 완성되면 true를 돌려준다.
     @discardableResult
     func update(verticalAcceleration: Double, timestampMs: Double) -> Bool {
-        let value = lowPass(raw: verticalAcceleration, timestampMs: timestampMs)
+        let value = lowPass(
+            raw: verticalAcceleration * config.verticalAccelerationScale,
+            timestampMs: timestampMs
+        )
 
         switch phase {
         case .waitingForValley:
@@ -75,13 +85,13 @@ final class RepDetector {
 
             if elapsedMs > config.maxHalfPeriodMs {
                 // 내려간 뒤 제때 올라오지 않았다. 반복으로 보지 않는다.
-                phase = .waitingForValley
+                phase = .waitingForRecovery
                 return false
             }
 
             if value < config.amplitudeThreshold { return false }
 
-            phase = .waitingForValley
+            phase = .waitingForRecovery
 
             if elapsedMs < config.minHalfPeriodMs { return false }
 
@@ -93,6 +103,14 @@ final class RepDetector {
             lastCountedAtMs = timestampMs
             count += 1
             return true
+
+        case .waitingForRecovery:
+            if abs(value) <= releaseThreshold() {
+                phase = .waitingForValley
+                valleyTimestampMs = nil
+                valleyValue = 0
+            }
+            return false
         }
     }
 
@@ -104,6 +122,10 @@ final class RepDetector {
         valleyValue = 0
         lastCountedAtMs = nil
         count = 0
+    }
+
+    private func releaseThreshold() -> Double {
+        config.amplitudeThreshold * min(max(config.releaseThresholdRatio, 0.1), 0.9)
     }
 
     /// 시간 상수 기반 1차 저역통과 필터.
